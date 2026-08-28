@@ -2,22 +2,28 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { AtBat, AtBatInput, AtBatResult, Game, Player } from '@/lib/types';
-import { AT_BAT_RESULTS, AT_BAT_RESULT_LABELS, EMPTY_BASES } from '@/lib/types';
-import { useAtBats, addAtBat, updateAtBat, deleteAtBat, updateGame } from '@/lib/db';
+import type { AtBat, AtBatResult, Direction, Game, Player } from '@/lib/types';
+import { AT_BAT_RESULTS, AT_BAT_RESULT_LABELS } from '@/lib/types';
+import { useAtBats, addAtBat, updateAtBat, deleteAtBat } from '@/lib/db';
 import {
-  applyPlateResult,
-  quickDetail,
-  FIELD_POS_LABELS,
-  HIT_ZONE_LABELS,
-  TRAJECTORY_LABELS,
+  buildAtBat,
+  choiceMeta,
+  describeDetail,
+  RESULT_CHOICES,
+  type ResultChoice,
 } from '@/lib/plate';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
-import { PlateSheet, type PlateSheetResult } from './PlateSheet';
+import { FanField } from '@/components/FanField';
 
-// 打席結果のカテゴリ（配色・ログのドット色に使う）
+const GROUP_STYLE: Record<'hit' | 'out' | 'other', string> = {
+  hit: 'bg-field text-white border-field-dark/30',
+  out: 'bg-white text-ink-muted border-line',
+  other: 'bg-night-700 text-white border-night/40',
+};
+
+// 公式結果 → ログのドット色
 type Cat = 'hit' | 'onbase' | 'out' | 'sac' | 'error';
 const RESULT_CAT: Record<AtBatResult, Cat> = {
   single: 'hit',
@@ -32,13 +38,6 @@ const RESULT_CAT: Record<AtBatResult, Cat> = {
   out: 'out',
   strikeout: 'out',
 };
-const CAT_BTN: Record<Cat, string> = {
-  hit: 'bg-field text-white border-field-dark/30',
-  onbase: 'bg-night-700 text-white border-night/40',
-  out: 'bg-white text-ink-muted border-line',
-  sac: 'bg-clay/10 text-clay-dark border-clay/25',
-  error: 'bg-clay text-white border-clay-dark/30',
-};
 const CAT_DOT: Record<Cat, string> = {
   hit: 'bg-field',
   onbase: 'bg-night-700',
@@ -46,43 +45,6 @@ const CAT_DOT: Record<Cat, string> = {
   sac: 'bg-clay/60',
   error: 'bg-clay',
 };
-
-function RbiStepper({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs font-bold text-ink-faint">打点</span>
-      <div className="flex items-center gap-1 rounded-xl border border-line bg-white p-1">
-        <button
-          type="button"
-          onClick={() => onChange(Math.max(0, value - 1))}
-          disabled={value <= 0}
-          aria-label="打点を減らす"
-          className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
-        >
-          −
-        </button>
-        <span className="tnum w-7 text-center text-xl font-bold text-ink">
-          {value}
-        </span>
-        <button
-          type="button"
-          onClick={() => onChange(Math.min(4, value + 1))}
-          disabled={value >= 4}
-          aria-label="打点を増やす"
-          className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
-        >
-          ＋
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export function AtBatPanel({
   teamId,
@@ -102,65 +64,55 @@ export function AtBatPanel({
     [players],
   );
   const lineup = game.lineup;
+  const nameOf = (id: string) => playerById.get(id)?.name ?? '(不明)';
 
-  const battingIndex = lineup.length ? atbats.length % lineup.length : 0;
-  const autoPlayerId = lineup[battingIndex] ?? '';
-  const order = battingIndex + 1;
-
+  // イニング：手動送りのみ。既定は直前の打席のイニング。
   const lastInning = atbats.length ? atbats[atbats.length - 1].inning : 1;
   const [inningOverride, setInningOverride] = useState<number | null>(null);
   const inning = inningOverride ?? lastInning;
 
-  const [manualPlayerId, setManualPlayerId] = useState<string | null>(null);
-  const effectivePlayerId = manualPlayerId ?? autoPlayerId;
-  const currentPlayer = playerById.get(effectivePlayerId);
-
+  // 統一入力の状態：選手 → 結果 → 方向 → 打点
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [choice, setChoice] = useState<ResultChoice | null>(null);
+  const [zone, setZone] = useState<Direction | null>(null);
   const [rbi, setRbi] = useState(0);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<AtBat | null>(null);
   const [deleting, setDeleting] = useState<AtBat | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showBench, setShowBench] = useState(false);
 
-  const bases = game.baseState;
-  const outs = game.outs;
-  const nameOf = (id: string) => playerById.get(id)?.name ?? '(不明)';
+  const meta = choice ? choiceMeta(choice) : null;
+  const needsDirection = meta?.needsDirection ?? false;
+  const canSave = Boolean(playerId && choice);
 
-  // 打席保存 + 塁状況/アウトの更新。3アウトなら攻守交代（次イニングへ・塁リセット）。
-  async function commit(input: AtBatInput, nextBases: typeof bases, nextOuts: number) {
-    await addAtBat(teamId, gameId, input);
-    if (nextOuts >= 3) {
-      await updateGame(teamId, gameId, {
-        baseState: { ...EMPTY_BASES },
-        outs: 0,
-      });
-      setInningOverride(inning + 1);
-    } else {
-      await updateGame(teamId, gameId, { baseState: nextBases, outs: nextOuts });
-    }
+  function pickChoice(c: ResultChoice) {
+    setChoice(c);
+    setZone(null);
+    setRbi(choiceMeta(c).defaultRbi ?? 0);
+  }
+
+  function resetInput() {
+    setPlayerId(null);
+    setChoice(null);
+    setZone(null);
     setRbi(0);
-    setManualPlayerId(null);
   }
 
-  async function record(result: AtBatResult) {
-    if (!effectivePlayerId || busy) return;
+  async function record() {
+    if (!playerId || !choice || busy) return;
     setBusy(true);
     try {
-      const detail = quickDetail(result, bases);
-      const t = applyPlateResult(bases, effectivePlayerId, detail);
-      await commit(
-        { playerId: effectivePlayerId, order, inning, result, rbi, detail },
-        t.next,
-        Math.min(3, outs + t.outsAdded),
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onSheetCommit(r: PlateSheetResult) {
-    setBusy(true);
-    try {
-      await commit(r.input, r.nextBaseState, r.nextOuts);
+      const { result, detail } = buildAtBat(choice, zone);
+      const idx = lineup.indexOf(playerId);
+      await addAtBat(teamId, gameId, {
+        playerId,
+        order: idx >= 0 ? idx + 1 : 0,
+        inning,
+        result,
+        rbi,
+        detail,
+      });
+      resetInput();
     } finally {
       setBusy(false);
     }
@@ -181,25 +133,20 @@ export function AtBatPanel({
     );
   }
 
+  const bench = players.filter((p) => !p.archived && !lineup.includes(p.id));
   const reversed = [...atbats].reverse();
   const last = reversed[0];
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 現在の打者 */}
       <div className="rounded-2xl border border-line bg-white shadow-card">
-        {/* イニング操作 + 塁状況 */}
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+        {/* イニング */}
+        <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+          <span className="text-xs font-bold text-ink-faint">イニング</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                setInningOverride(Math.max(1, inning - 1));
-                void updateGame(teamId, gameId, {
-                  baseState: { ...EMPTY_BASES },
-                  outs: 0,
-                });
-              }}
+              onClick={() => setInningOverride(Math.max(1, inning - 1))}
               disabled={inning <= 1}
               className="grid h-8 w-8 place-items-center rounded-lg border border-line text-lg text-ink-muted active:bg-chalk disabled:opacity-30"
               aria-label="前のイニング"
@@ -208,93 +155,184 @@ export function AtBatPanel({
             </button>
             <span className="tnum w-12 text-center text-lg font-bold text-ink">
               {inning}
-              <span className="ml-0.5 text-xs font-semibold text-ink-faint">回</span>
+              <span className="ml-0.5 text-xs font-semibold text-ink-faint">
+                回
+              </span>
             </span>
             <button
               type="button"
-              onClick={() => {
-                setInningOverride(inning + 1);
-                void updateGame(teamId, gameId, {
-                  baseState: { ...EMPTY_BASES },
-                  outs: 0,
-                });
-              }}
+              onClick={() => setInningOverride(inning + 1)}
               className="grid h-8 w-8 place-items-center rounded-lg border border-line text-lg text-ink-muted active:bg-chalk"
-              aria-label="次のイニング（攻守交代）"
+              aria-label="次のイニング"
             >
               ＋
             </button>
           </div>
-          <BaseOutsMini bases={bases} outs={outs} />
         </div>
 
         <div className="p-4">
-          <p className="mb-2 text-xs font-bold text-ink-faint">
-            {order}番 打者
-          </p>
-          <div className="mb-3 flex items-center gap-3">
-            <span className="tnum grid h-11 w-11 shrink-0 place-items-center rounded-full bg-field text-lg font-bold text-white">
-              {order}
-            </span>
-            <select
-              value={effectivePlayerId}
-              onChange={(e) => setManualPlayerId(e.target.value)}
-              className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-white px-3 text-base font-bold text-ink"
-            >
-              {lineup.map((id, i) => {
-                const p = playerById.get(id);
-                return (
-                  <option key={id} value={id}>
-                    {i + 1}番 {p?.number != null ? `#${p.number} ` : ''}
-                    {p?.name ?? '(不明)'}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-ink">
-              {currentPlayer?.name ?? ''}
-            </span>
-            <RbiStepper value={rbi} onChange={setRbi} />
-          </div>
-        </div>
-      </div>
+          {!playerId ? (
+            <>
+              {/* 1. 選手 */}
+              <p className="mb-2 text-xs font-bold text-ink-faint">
+                打席が終わった選手を選ぶ
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {lineup.map((id, i) => {
+                  const p = playerById.get(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setPlayerId(id)}
+                      className="flex items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-left active:bg-chalk"
+                    >
+                      <span className="tnum grid h-7 w-7 shrink-0 place-items-center rounded-full bg-field-tint text-sm font-bold text-field">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink">
+                        {p?.name ?? '(不明)'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-      {/* 詳細入力（打球方向・守備・走者まで） */}
-      <button
-        type="button"
-        disabled={busy || !effectivePlayerId}
-        onClick={() => setSheetOpen(true)}
-        className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-clay text-[15px] font-bold text-white shadow-sm active:scale-[0.98] disabled:opacity-50"
-      >
-        ⚾️ 詳細入力（打球方向・守備・走者）
-      </button>
+              {bench.length > 0 && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowBench((v) => !v)}
+                    className="text-xs font-bold text-field"
+                  >
+                    {showBench ? '▲ ベンチを隠す' : '▼ ベンチの選手'}
+                  </button>
+                  {showBench && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {bench.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPlayerId(p.id)}
+                          className="rounded-full border border-line bg-white px-3 py-1.5 text-sm text-ink-muted active:bg-chalk"
+                        >
+                          {p.number != null && (
+                            <span className="tnum mr-1 font-bold text-field">
+                              {p.number}
+                            </span>
+                          )}
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-bold text-ink">
+                  {lineup.includes(playerId) && (
+                    <span className="tnum mr-1.5 text-field">
+                      {lineup.indexOf(playerId) + 1}番
+                    </span>
+                  )}
+                  {nameOf(playerId)}
+                </span>
+                <button
+                  type="button"
+                  onClick={resetInput}
+                  className="text-xs font-bold text-ink-faint"
+                >
+                  選手を変更
+                </button>
+              </div>
 
-      {/* クイック入力 */}
-      <div>
-        <p className="mb-1.5 px-1 text-xs font-bold text-ink-faint">
-          クイック入力
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          {AT_BAT_RESULTS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              disabled={busy}
-              onClick={() => record(r)}
-              className={`h-[60px] rounded-2xl border text-[15px] font-bold shadow-sm transition-transform active:scale-[0.96] disabled:opacity-50 ${CAT_BTN[RESULT_CAT[r]]}`}
-            >
-              {AT_BAT_RESULT_LABELS[r]}
-            </button>
-          ))}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 px-1 text-[11px] text-ink-faint">
-          <Legend dot="bg-field" label="安打" />
-          <Legend dot="bg-night-700" label="出塁" />
-          <Legend dot="bg-clay" label="失策" />
-          <Legend dot="bg-clay/60" label="犠打飛" />
-          <Legend dot="bg-ink-faint" label="アウト" />
+              {/* 2. 結果 */}
+              <p className="mb-2 text-xs font-bold text-ink-faint">結果</p>
+              <div className="grid grid-cols-3 gap-2">
+                {RESULT_CHOICES.map((c) => (
+                  <button
+                    key={c.choice}
+                    type="button"
+                    onClick={() => pickChoice(c.choice)}
+                    className={`h-12 rounded-xl border text-sm font-bold active:scale-[0.97] ${
+                      choice === c.choice
+                        ? 'border-field-dark bg-field text-white ring-2 ring-field/30'
+                        : GROUP_STYLE[c.group]
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 3. 方向 */}
+              {choice && needsDirection && (
+                <div className="mt-4">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <p className="text-xs font-bold text-ink-faint">方向</p>
+                    <button
+                      type="button"
+                      onClick={() => setZone('unknown')}
+                      className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                        zone === 'unknown'
+                          ? 'border-field bg-field text-white'
+                          : 'border-line text-ink-muted'
+                      }`}
+                    >
+                      不明
+                    </button>
+                  </div>
+                  <div className="rounded-2xl border border-line bg-white p-2">
+                    <FanField
+                      value={zone === 'unknown' ? null : zone}
+                      onChange={(z) => setZone(z)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 4. 打点 */}
+              {choice && (
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink-faint">打点</span>
+                  <div className="flex items-center gap-1 rounded-xl border border-line p-1">
+                    <button
+                      type="button"
+                      onClick={() => setRbi(Math.max(0, rbi - 1))}
+                      disabled={rbi <= 0}
+                      className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+                    >
+                      −
+                    </button>
+                    <span className="tnum w-7 text-center text-xl font-bold text-ink">
+                      {rbi}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRbi(Math.min(4, rbi + 1))}
+                      disabled={rbi >= 4}
+                      className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+                    >
+                      ＋
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                fullWidth
+                size="lg"
+                className="mt-4"
+                disabled={!canSave || busy}
+                onClick={record}
+              >
+                {busy ? '記録中…' : '記録する'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -309,7 +347,7 @@ export function AtBatPanel({
               {last.inning}回
             </span>
             <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink">
-              {last.order}番 {playerById.get(last.playerId)?.name ?? '(不明)'}
+              {nameOf(last.playerId)}
             </span>
             <span className="text-sm font-bold text-field-dark">
               {AT_BAT_RESULT_LABELS[last.result]}
@@ -318,6 +356,11 @@ export function AtBatPanel({
               )}
             </span>
           </div>
+          {describeDetail(last.result, last.detail) && (
+            <p className="mt-1 pl-1 text-xs text-ink-muted">
+              {describeDetail(last.result, last.detail)}
+            </p>
+          )}
           <div className="mt-2 flex justify-end gap-1">
             <Button size="sm" variant="ghost" onClick={() => setEditing(last)}>
               修正
@@ -343,23 +386,21 @@ export function AtBatPanel({
         ) : (
           <ul className="divide-y divide-line">
             {reversed.map((a) => {
-              const p = playerById.get(a.playerId);
-              const cat = RESULT_CAT[a.result];
+              const summary = describeDetail(a.result, a.detail);
               return (
                 <li key={a.id} className="flex items-center gap-2.5 px-4 py-2.5">
                   <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${CAT_DOT[cat]}`}
+                    className={`h-2 w-2 shrink-0 rounded-full ${CAT_DOT[RESULT_CAT[a.result]]}`}
                     aria-hidden
                   />
                   <span className="tnum w-9 shrink-0 text-xs font-semibold text-ink-faint">
                     {a.inning}回
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm text-ink">
-                    <span className="tnum text-ink-faint">{a.order}</span>{' '}
-                    {p?.name ?? '(不明)'}
-                    {a.detail && (
+                    {nameOf(a.playerId)}
+                    {summary && (
                       <span className="ml-1 text-xs text-ink-faint">
-                        {describeDetail(a.detail)}
+                        {summary}
                       </span>
                     )}
                   </span>
@@ -422,104 +463,9 @@ export function AtBatPanel({
           </>
         }
       >
-        <p>削除すると打順が1つ戻ります。誤入力の訂正にお使いください。</p>
+        <p>誤入力の訂正にお使いください。</p>
       </Modal>
-
-      <PlateSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        batterId={effectivePlayerId}
-        batterName={currentPlayer?.name ?? ''}
-        order={order}
-        inning={inning}
-        baseState={bases}
-        currentOuts={outs}
-        playerName={nameOf}
-        onCommit={onSheetCommit}
-      />
     </div>
-  );
-}
-
-function BaseOutsMini({
-  bases,
-  outs,
-}: {
-  bases: Game['baseState'];
-  outs: number;
-}) {
-  const on = (v: string | null) =>
-    v ? 'fill-field stroke-field-dark' : 'fill-white stroke-line';
-  return (
-    <div className="flex items-center gap-2.5">
-      {/* 塁ダイヤ */}
-      <svg viewBox="0 0 40 34" className="h-7 w-8" aria-label="塁状況">
-        <rect
-          x="26"
-          y="13"
-          width="9"
-          height="9"
-          transform="rotate(45 30.5 17.5)"
-          className={`${on(bases.first)} [stroke-width:1.5]`}
-        />
-        <rect
-          x="15.5"
-          y="3"
-          width="9"
-          height="9"
-          transform="rotate(45 20 7.5)"
-          className={`${on(bases.second)} [stroke-width:1.5]`}
-        />
-        <rect
-          x="5"
-          y="13"
-          width="9"
-          height="9"
-          transform="rotate(45 9.5 17.5)"
-          className={`${on(bases.third)} [stroke-width:1.5]`}
-        />
-      </svg>
-      {/* アウト */}
-      <div className="flex items-center gap-1">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className={`h-2.5 w-2.5 rounded-full ${
-              i < outs ? 'bg-stitch' : 'bg-line'
-            }`}
-          />
-        ))}
-        <span className="ml-0.5 text-xs font-bold text-ink-faint">
-          {outs}アウト
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function describeDetail(d: AtBat['detail']): string {
-  if (!d) return '';
-  const parts: string[] = [];
-  if (d.battedBall) {
-    parts.push(
-      `${HIT_ZONE_LABELS[d.battedBall.zone]}${TRAJECTORY_LABELS[d.battedBall.trajectory]}`,
-    );
-  }
-  if (d.fielding && d.fielding.sequence.length > 0) {
-    parts.push(d.fielding.sequence.map((p) => FIELD_POS_LABELS[p]).join('-'));
-  }
-  if (d.fielding?.fieldersChoice) parts.push('野選');
-  if (d.brokenDoublePlay) parts.push('併殺崩れ');
-  else if (d.doublePlay) parts.push('併殺');
-  return parts.join(' ');
-}
-
-function Legend({ dot, label }: { dot: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
-      {label}
-    </span>
   );
 }
 
@@ -604,7 +550,28 @@ function EditAtBatModal({
             className="h-12 w-full rounded-xl border border-line bg-white px-3.5 text-base text-ink"
           />
         </label>
-        <RbiStepper value={rbi} onChange={setRbi} />
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-ink-muted">打点</span>
+          <div className="flex items-center gap-1 rounded-xl border border-line p-1">
+            <button
+              type="button"
+              onClick={() => setRbi(Math.max(0, rbi - 1))}
+              className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted"
+            >
+              −
+            </button>
+            <span className="tnum w-7 text-center text-xl font-bold text-ink">
+              {rbi}
+            </span>
+            <button
+              type="button"
+              onClick={() => setRbi(Math.min(4, rbi + 1))}
+              className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted"
+            >
+              ＋
+            </button>
+          </div>
+        </div>
       </div>
     </Modal>
   );

@@ -12,8 +12,8 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import type { BaseState, Game, GameInput } from '@/lib/types';
-import { EMPTY_BASES, EMPTY_SCORES } from '@/lib/types';
+import type { Game, GameInput } from '@/lib/types';
+import { EMPTY_SCORES } from '@/lib/types';
 import { getDb } from '@/lib/firebase';
 import { gamesCol, gameDoc, atbatsCol } from './refs';
 
@@ -30,15 +30,6 @@ function normalizeScores(v: unknown): number[] {
   return out;
 }
 
-function normalizeBases(v: unknown): BaseState {
-  const b = (v ?? {}) as Partial<BaseState>;
-  return {
-    first: typeof b.first === 'string' ? b.first : null,
-    second: typeof b.second === 'string' ? b.second : null,
-    third: typeof b.third === 'string' ? b.third : null,
-  };
-}
-
 export function toGame(id: string, data: Record<string, unknown>): Game {
   return {
     id,
@@ -50,8 +41,6 @@ export function toGame(id: string, data: Record<string, unknown>): Game {
     homeScores: normalizeScores(data.homeScores),
     awayScores: normalizeScores(data.awayScores),
     status: (data.status as Game['status']) ?? 'in_progress',
-    baseState: normalizeBases(data.baseState),
-    outs: typeof data.outs === 'number' ? Math.max(0, Math.min(3, data.outs)) : 0,
     createdAt: toMillis(data.createdAt),
   };
 }
@@ -88,8 +77,6 @@ export async function createGame(
     homeScores: [...EMPTY_SCORES],
     awayScores: [...EMPTY_SCORES],
     status: 'in_progress' as const,
-    baseState: { ...EMPTY_BASES },
-    outs: 0,
     createdAt: serverTimestamp(),
   };
   const ref = await addDoc(gamesCol(teamId), payload);
