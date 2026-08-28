@@ -71,6 +71,8 @@ async function main() {
   while ((await db.doc(`teams/${teamId}`).get()).exists) teamId = generateTeamId();
   await db.doc(`teams/${teamId}`).set({
     name: teamName,
+    color: '#2f7a3d', // src/lib/team-colors.ts の DEFAULT_TEAM_COLOR
+    logoUrl: null,
     createdAt: FieldValue.serverTimestamp(),
   });
 

@@ -44,11 +44,11 @@ export default function PlayersPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-bold text-slate-900">選手管理</h1>
+      <h1 className="text-xl font-bold tracking-tight text-ink">選手管理</h1>
 
       <form
         onSubmit={onAdd}
-        className="flex items-end gap-2 rounded-xl bg-white p-4 shadow-sm"
+        className="flex items-end gap-2 rounded-2xl border border-line bg-white p-4 shadow-card"
       >
         <div className="flex-1">
           <Field label="名前">
@@ -75,36 +75,36 @@ export default function PlayersPage() {
         </Button>
       </form>
 
-      <div className="rounded-xl bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-line bg-white p-2 shadow-card">
         {loading ? (
           <Spinner />
         ) : (
           <>
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-line">
               {active.map((p) => (
                 <PlayerRow key={p.id} teamId={teamId} player={p} />
               ))}
               {active.length === 0 && (
-                <li className="py-4 text-center text-sm text-slate-500">
+                <li className="py-8 text-center text-sm text-ink-faint">
                   選手がいません。
                 </li>
               )}
             </ul>
 
             {archived.length > 0 && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm text-slate-500">
+              <details className="mt-1 px-2 pb-1">
+                <summary className="cursor-pointer py-2 text-sm text-ink-faint">
                   削除済み（{archived.length}）
                 </summary>
-                <ul className="mt-2 divide-y divide-slate-100">
+                <ul className="divide-y divide-line">
                   {archived.map((p) => (
                     <li
                       key={p.id}
-                      className="flex items-center justify-between py-2 text-sm text-slate-500"
+                      className="flex items-center justify-between py-2 text-sm text-ink-faint"
                     >
                       <span>
                         {p.number != null && (
-                          <span className="mr-2 tabular-nums">#{p.number}</span>
+                          <span className="tnum mr-2">#{p.number}</span>
                         )}
                         {p.name}
                       </span>
@@ -145,18 +145,18 @@ function PlayerRow({ teamId, player }: { teamId: string; player: Player }) {
 
   if (editing) {
     return (
-      <li className="flex items-center gap-2 py-2">
+      <li className="flex items-center gap-2 px-2 py-2">
         <TextInput
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="flex-1"
+          className="h-10 flex-1"
         />
         <TextInput
           type="number"
           inputMode="numeric"
           value={number}
           onChange={(e) => setNumber(e.target.value)}
-          className="w-16"
+          className="h-10 w-16"
         />
         <Button size="sm" onClick={onSave}>
           保存
@@ -169,11 +169,11 @@ function PlayerRow({ teamId, player }: { teamId: string; player: Player }) {
   }
 
   return (
-    <li className="flex items-center justify-between py-2">
-      <span className="text-slate-800">
+    <li className="flex items-center justify-between px-2 py-2.5">
+      <span className="text-ink">
         {player.number != null && (
-          <span className="mr-2 tabular-nums text-slate-500">
-            #{player.number}
+          <span className="tnum mr-2 font-bold text-field">
+            {player.number}
           </span>
         )}
         {player.name}

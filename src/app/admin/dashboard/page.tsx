@@ -65,8 +65,8 @@ export default function AdminDashboardPage() {
   if (auth.status === 'signed-out') {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-slate-700">ログインが必要です。</p>
-        <Link href="/admin/login" className="font-medium text-brand hover:underline">
+        <p className="text-ink-muted">ログインが必要です。</p>
+        <Link href="/admin/login" className="font-medium text-field hover:underline">
           ログインページへ
         </Link>
       </main>
@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
   if (auth.status === 'not-admin') {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-slate-700">
+        <p className="text-ink-muted">
           このアカウントには管理者権限がありません。
         </p>
         <Button
@@ -125,7 +125,7 @@ export default function AdminDashboardPage() {
   return (
     <main className="mx-auto max-w-2xl p-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">アプリ管理</h1>
+        <h1 className="text-xl font-bold text-ink">アプリ管理</h1>
         <Button
           variant="secondary"
           size="sm"
@@ -139,7 +139,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {error && (
-        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-4 rounded-lg border border-stitch/20 bg-stitch/8 p-3 text-sm font-medium text-stitch-dark">
           {error}
         </p>
       )}
@@ -150,8 +150,8 @@ export default function AdminDashboardPage() {
         <Stat label="総試合数" value={gameCount} />
       </section>
 
-      <section className="mb-6 rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">
+      <section className="mb-6 rounded-2xl border border-line bg-white p-4 shadow-card">
+        <h2 className="mb-3 text-sm font-bold text-ink-muted">
           チームを作成
         </h2>
         <form onSubmit={onCreate} className="flex items-end gap-2">
@@ -171,26 +171,26 @@ export default function AdminDashboardPage() {
         </form>
       </section>
 
-      <section className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">チーム一覧</h2>
+      <section className="rounded-2xl border border-line bg-white p-4 shadow-card">
+        <h2 className="mb-3 text-sm font-bold text-ink-muted">チーム一覧</h2>
         {loading ? (
           <Spinner />
         ) : teams.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">
+          <p className="py-6 text-center text-sm text-ink-faint">
             まだチームがありません。
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-line">
             {teams.map((team) => (
               <li key={team.id} className="flex items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-slate-900">
+                  <p className="truncate font-medium text-ink">
                     {team.name}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                  <p className="mt-0.5 truncate text-xs text-ink-faint">
                     <Link
                       href={`/team/${team.id}`}
-                      className="hover:text-brand hover:underline"
+                      className="hover:text-field hover:underline"
                     >
                       {shareUrl(team.id)}
                     </Link>
@@ -235,11 +235,11 @@ export default function AdminDashboardPage() {
 
 function Stat({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-      <p className="text-2xl font-bold tabular-nums text-slate-900">
+    <div className="rounded-2xl border border-line bg-white p-3 text-center shadow-card">
+      <p className="text-2xl font-bold tabular-nums text-ink">
         {value ?? '—'}
       </p>
-      <p className="mt-1 text-xs text-slate-500">{label}</p>
+      <p className="mt-1 text-xs text-ink-faint">{label}</p>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function AdminLoginPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 p-6">
-      <h1 className="text-xl font-bold text-slate-900">アプリ管理者ログイン</h1>
+      <h1 className="text-xl font-bold text-ink">アプリ管理者ログイン</h1>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <Field label="メールアドレス">
           <TextInput

@@ -71,9 +71,9 @@ export default function NewGamePage() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <h1 className="text-lg font-bold text-slate-900">試合を作成</h1>
+      <h1 className="text-xl font-bold tracking-tight text-ink">試合を作成</h1>
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-3 rounded-2xl border border-line bg-white p-4 shadow-card">
         <Field label="日付">
           <TextInput
             type="date"
@@ -107,27 +107,27 @@ export default function NewGamePage() {
         </Field>
       </div>
 
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">
-          スタメン・打順（{lineup.length}人）
+      <div className="rounded-2xl border border-line bg-white p-4 shadow-card">
+        <h2 className="mb-3 text-sm font-bold text-ink-muted">
+          スタメン・打順 <span className="text-ink-faint">{lineup.length}人</span>
         </h2>
 
         {loading ? (
           <Spinner />
         ) : (
           <>
-            <ol className="mb-4 divide-y divide-slate-100">
+            <ol className="mb-4 divide-y divide-line">
               {lineup.map((id, i) => {
                 const p = playerById.get(id);
                 return (
                   <li key={id} className="flex items-center gap-2 py-2">
-                    <span className="w-6 text-center font-bold tabular-nums text-slate-500">
+                    <span className="tnum grid h-7 w-7 shrink-0 place-items-center rounded-full bg-field-tint text-sm font-bold text-field">
                       {i + 1}
                     </span>
-                    <span className="flex-1 truncate text-slate-800">
+                    <span className="flex-1 truncate text-ink">
                       {p?.number != null && (
-                        <span className="mr-1 tabular-nums text-slate-500">
-                          #{p.number}
+                        <span className="tnum mr-1 font-bold text-field">
+                          {p.number}
                         </span>
                       )}
                       {p?.name ?? '(不明)'}
@@ -161,7 +161,7 @@ export default function NewGamePage() {
                 );
               })}
               {lineup.length === 0 && (
-                <li className="py-3 text-center text-sm text-slate-500">
+                <li className="py-4 text-center text-sm text-ink-faint">
                   下から選手を追加してください。
                 </li>
               )}
@@ -169,18 +169,18 @@ export default function NewGamePage() {
 
             {available.length > 0 && (
               <div>
-                <p className="mb-2 text-xs font-medium text-slate-500">
+                <p className="mb-2 text-xs font-semibold text-ink-faint">
                   追加できる選手
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {available.map((p) => (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => addToLineup(p.id)}
-                      className="rounded-full border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:border-brand hover:text-brand"
+                      className="rounded-full border border-line bg-chalk px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:border-field hover:text-field"
                     >
-                      + {p.number != null ? `#${p.number} ` : ''}
+                      ＋ {p.number != null ? `${p.number} ` : ''}
                       {p.name}
                     </button>
                   ))}
@@ -192,7 +192,9 @@ export default function NewGamePage() {
       </div>
 
       {error && (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        <p className="rounded-xl border border-stitch/20 bg-stitch/8 p-3 text-sm font-medium text-stitch-dark">
+          {error}
+        </p>
       )}
 
       <Button type="submit" fullWidth size="lg" disabled={busy}>

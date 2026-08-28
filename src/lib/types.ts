@@ -47,6 +47,14 @@ export type GameStatus = 'in_progress' | 'finished';
 export interface Team {
   id: string;
   name: string;
+  /** チームカラー（HEX, 例 "#2f7a3d"）。ロゴ未設定時のアバター背景色にも使う。 */
+  color: string;
+  /**
+   * チームロゴ。設定時は縮小した data URL（Firestore に直接保存）。
+   * 未設定なら null で、UI は color + 頭文字のアバターを表示する。
+   * 将来 Firebase Storage の URL に差し替え可能。
+   */
+  logoUrl: string | null;
   createdAt: number;
 }
 

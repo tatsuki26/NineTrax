@@ -6,12 +6,51 @@
   color-scheme: light;
 }
 
-html,
-body {
-  @apply bg-slate-50 text-slate-900;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html,
+  body {
+    @apply bg-chalk text-ink;
+    font-feature-settings: 'palt' 1;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: rgba(15, 123, 95, 0.18);
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+
+  /* iOS のズーム防止（フォーム入力は 16px 以上） */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
-body {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer components {
+  /* スコアボードなどの数字表示 */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: 0.01em;
+  }
+
+  /* ナイター配色のパネル（ヘッダー・スコアボード） */
+  .panel-night {
+    @apply bg-night text-white;
+    background-image: linear-gradient(180deg, #1a2c49 0%, #122139 100%);
+  }
 }

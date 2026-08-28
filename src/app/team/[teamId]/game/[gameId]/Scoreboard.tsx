@@ -19,7 +19,6 @@ export function Scoreboard({
   gameId: string;
   game: Game;
 }) {
-  // editing: `${row}-${inning}` / null
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
@@ -44,78 +43,91 @@ export function Scoreboard({
     setDraft(value ? String(value) : '');
   }
 
-  const renderRow = (row: 'home' | 'away', label: string, scores: number[]) => (
-    <tr>
-      <th className="whitespace-nowrap border-b border-slate-100 bg-white px-2 py-2 text-left font-semibold text-slate-700">
-        {label}
-      </th>
-      {INNINGS.map((i) => {
-        const key = `${row}-${i}`;
-        return (
-          <td
-            key={i}
-            className="border-b border-l border-slate-100 p-0 text-center"
-          >
-            {editing === key ? (
-              <input
-                autoFocus
-                type="number"
-                inputMode="numeric"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => commit(row, i)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commit(row, i);
-                  if (e.key === 'Escape') setEditing(null);
-                }}
-                className="h-10 w-10 text-center tabular-nums outline-none ring-2 ring-brand"
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => startEdit(row, i, scores[i] || 0)}
-                className="h-10 w-10 tabular-nums text-slate-800 hover:bg-brand/10"
-              >
-                {scores[i] || 0}
-              </button>
-            )}
-          </td>
-        );
-      })}
-      <td className="border-b border-l-2 border-slate-300 bg-slate-50 px-2 text-center font-bold tabular-nums text-slate-900">
-        {sum(scores)}
-      </td>
-    </tr>
-  );
+  const renderRow = (row: 'home' | 'away', label: string, scores: number[]) => {
+    const total = sum(scores);
+    const other =
+      row === 'home' ? sum(game.awayScores) : sum(game.homeScores);
+    return (
+      <tr>
+        <th className="sticky left-0 z-10 whitespace-nowrap bg-night px-3 py-2.5 text-left text-xs font-bold text-white/70">
+          {label}
+        </th>
+        {INNINGS.map((i) => {
+          const key = `${row}-${i}`;
+          return (
+            <td
+              key={i}
+              className="border-l border-white/10 p-0 text-center align-middle"
+            >
+              {editing === key ? (
+                <input
+                  autoFocus
+                  type="number"
+                  inputMode="numeric"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => commit(row, i)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commit(row, i);
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  className="tnum h-11 w-11 rounded-md bg-white text-center text-lg font-bold text-night outline-none ring-2 ring-clay"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEdit(row, i, scores[i] || 0)}
+                  className="tnum h-11 w-11 text-lg font-bold text-amber-300 tabular-nums transition-colors hover:bg-white/10 active:bg-white/15"
+                >
+                  {scores[i] || 0}
+                </button>
+              )}
+            </td>
+          );
+        })}
+        <td
+          className={`border-l-2 border-white/25 px-3 text-center align-middle text-xl font-bold tabular-nums ${
+            total >= other ? 'text-white' : 'text-white/55'
+          }`}
+        >
+          {total}
+        </td>
+      </tr>
+    );
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="w-full overflow-x-auto rounded-xl bg-white p-3 shadow-sm">
-        <table className="border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className="bg-white px-2 py-2" />
-              {INNINGS.map((i) => (
-                <th
-                  key={i}
-                  className="w-10 border-b border-l border-slate-100 px-0 py-2 text-center font-semibold text-slate-500"
-                >
-                  {i + 1}
+    <div className="flex flex-col gap-3">
+      <div className="overflow-hidden rounded-2xl border border-night/30 shadow-panel">
+        <div className="w-full overflow-x-auto panel-night">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-[11px] font-bold text-white/40">
+                <th className="sticky left-0 z-10 bg-night px-3 py-2 text-left">
+                  回
                 </th>
-              ))}
-              <th className="border-b border-l-2 border-slate-300 bg-slate-50 px-2 py-2 text-center font-semibold text-slate-500">
-                計
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {renderRow('away', '相手', game.awayScores)}
-            {renderRow('home', '自チーム', game.homeScores)}
-          </tbody>
-        </table>
+                {INNINGS.map((i) => (
+                  <th
+                    key={i}
+                    className="tnum w-11 border-l border-white/10 px-0 py-2 text-center"
+                  >
+                    {i + 1}
+                  </th>
+                ))}
+                <th className="border-l-2 border-white/25 px-3 py-2 text-center">
+                  計
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {renderRow('away', '相手', game.awayScores)}
+              {renderRow('home', '自チーム', game.homeScores)}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <p className="text-xs text-slate-400">
-        セルをタップして各イニングの得点を入力します（打席記録とは連動しません）。
+      <p className="px-1 text-xs text-ink-faint">
+        数字をタップして各イニングの得点を入力します（打席記録とは連動しません）。
       </p>
     </div>
   );

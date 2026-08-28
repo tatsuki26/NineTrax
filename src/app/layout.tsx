@@ -10,7 +10,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#1d4ed8',
+  themeColor: '#122139',
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh font-sans">{children}</body>
     </html>
   );
 }

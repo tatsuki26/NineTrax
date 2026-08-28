@@ -18,29 +18,41 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-night/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl"
+        className="w-full max-w-md animate-slide-up rounded-t-3xl border border-line bg-cream p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-panel sm:rounded-3xl sm:pb-5"
         onClick={(e) => e.stopPropagation()}
       >
+        <div
+          className="mx-auto mb-3 h-1 w-9 rounded-full bg-line sm:hidden"
+          aria-hidden
+        />
         {title && (
-          <h2 className="mb-3 text-lg font-bold text-slate-900">{title}</h2>
+          <h2 className="mb-2 text-lg font-bold tracking-tight text-ink">
+            {title}
+          </h2>
         )}
-        <div className="text-slate-700">{children}</div>
+        <div className="text-[15px] leading-relaxed text-ink-muted">
+          {children}
+        </div>
         {footer && (
-          <div className="mt-5 flex justify-end gap-2">{footer}</div>
+          <div className="mt-6 flex justify-end gap-2">{footer}</div>
         )}
       </div>
     </div>

@@ -69,14 +69,14 @@ export default function StatsPage() {
   if (gamesLoading) return <Spinner />;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-900">個人成績</h1>
+        <h1 className="text-xl font-bold tracking-tight text-ink">個人成績</h1>
         {seasons.length > 0 && (
           <select
             value={effectiveSeason ?? ''}
             onChange={(e) => setSeason(Number(e.target.value))}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm"
+            className="h-9 rounded-xl border border-line bg-white px-3 text-sm font-bold text-ink"
           >
             {seasons.map((s) => (
               <option key={s} value={s}>
@@ -88,7 +88,7 @@ export default function StatsPage() {
       </div>
 
       {effectiveSeason == null ? (
-        <p className="py-10 text-center text-sm text-slate-500">
+        <p className="py-12 text-center text-sm text-ink-faint">
           試合がありません。
         </p>
       ) : loadingAtBats ? (
@@ -96,22 +96,24 @@ export default function StatsPage() {
       ) : (
         <>
           <section>
-            <h2 className="mb-2 text-sm font-semibold text-slate-700">
-              通算（{effectiveSeason}年 ・ {seasonGames.length}試合）
-            </h2>
+            <div className="mb-2 flex items-center gap-2">
+              <h2 className="text-sm font-bold text-ink-muted">通算</h2>
+              <span className="tnum text-xs text-ink-faint">
+                {effectiveSeason}年 ・ {seasonGames.length}試合
+              </span>
+            </div>
             <StatTable byPlayer={totalByPlayer} playerById={playerById} />
           </section>
 
-          <section className="flex flex-col gap-5">
-            <h2 className="text-sm font-semibold text-slate-700">試合ごと</h2>
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-bold text-ink-muted">試合ごと</h2>
             {seasonGames.map((g) => {
               const rows = atbatsByGame[g.id] ?? [];
               if (rows.length === 0) return null;
               return (
                 <div key={g.id}>
-                  <p className="mb-1 text-xs text-slate-500">
-                    <span className="tabular-nums">{g.date}</span> vs{' '}
-                    {g.opponent || '未設定'}
+                  <p className="tnum mb-1.5 text-xs font-semibold text-ink-faint">
+                    {g.date} ・ vs {g.opponent || '未設定'}
                   </p>
                   <StatTable
                     byPlayer={computeByPlayer(rows)}
@@ -127,8 +129,13 @@ export default function StatsPage() {
   );
 }
 
-const COLUMNS: { key: keyof StatLine; label: string; rate?: boolean }[] = [
-  { key: 'avg', label: '打率', rate: true },
+const COLUMNS: {
+  key: keyof StatLine;
+  label: string;
+  rate?: boolean;
+  strong?: boolean;
+}[] = [
+  { key: 'avg', label: '打率', rate: true, strong: true },
   { key: 'pa', label: '打席' },
   { key: 'ab', label: '打数' },
   { key: 'h', label: '安打' },
@@ -143,7 +150,7 @@ const COLUMNS: { key: keyof StatLine; label: string; rate?: boolean }[] = [
   { key: 'sacFly', label: '犠飛' },
   { key: 'obp', label: '出塁率', rate: true },
   { key: 'slg', label: '長打率', rate: true },
-  { key: 'ops', label: 'OPS', rate: true },
+  { key: 'ops', label: 'OPS', rate: true, strong: true },
 ];
 
 function StatTable({
@@ -164,7 +171,7 @@ function StatTable({
 
   if (rows.length === 0) {
     return (
-      <p className="py-4 text-center text-sm text-slate-500">記録なし</p>
+      <p className="py-4 text-center text-sm text-ink-faint">記録なし</p>
     );
   }
 
@@ -183,14 +190,14 @@ function StatTable({
           <tr key={r.playerId}>
             <Td>
               {r.number != null && (
-                <span className="mr-1 text-slate-400">#{r.number}</span>
+                <span className="mr-1 text-ink-faint">#{r.number}</span>
               )}
               {r.name}
             </Td>
             {COLUMNS.map((c) => {
               const v = r.line[c.key];
               return (
-                <Td key={c.key}>
+                <Td key={c.key} strong={c.strong}>
                   {c.rate ? formatRate(v as number | null) : (v as number)}
                 </Td>
               );
