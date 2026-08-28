@@ -1,5 +1,6 @@
 import { NewTeamButton } from './NewTeamButton';
 import { SecretAdminLink } from './SecretAdminLink';
+import { NineTraxLogo } from '@/components/Logo';
 
 // ルート = アプリ紹介を兼ねたランディングページ。
 // 既存チームはチームごとに配布された共有URL（/team/[teamId]）から入る想定。
@@ -131,6 +132,9 @@ export default function HomePage() {
         />
         <div className="relative mx-auto grid min-h-dvh max-w-6xl items-center gap-12 px-6 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-24">
           <div className="animate-slide-up">
+            <div className="mb-6">
+              <NineTraxLogo size={34} wordmarkClassName="text-2xl" />
+            </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium tracking-wide text-white/80">
               <span className="h-1.5 w-1.5 rounded-full bg-stitch" />
               草野球のためのスコア記録アプリ
@@ -234,10 +238,10 @@ export default function HomePage() {
       </section>
 
       <footer className="bg-night px-6 py-8 text-center text-xs text-white/50">
-        <p>
+        <div className="flex justify-center">
           <SecretAdminLink />
-        </p>
-        <p className="mt-1">草野球チームの打席結果とスコアを記録・共有するアプリ</p>
+        </div>
+        <p className="mt-2">草野球チームの打席結果とスコアを記録・共有するアプリ</p>
       </footer>
     </main>
   );

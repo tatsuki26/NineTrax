@@ -2,9 +2,10 @@
 
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { NineTraxLogo } from '@/components/Logo';
 
-// フッターのワードマークを「知っている人だけが押せる」管理画面への入口にする。
-// 見た目は通常のテキストのまま。ダブルクリック（PC）／長押し（スマホ）で
+// フッターのロゴを「知っている人だけが押せる」管理画面への入口にする。
+// 見た目は通常のロゴのまま。ダブルクリック（PC）／長押し（スマホ）で
 // /admin/login へ遷移する。
 export function SecretAdminLink() {
   const router = useRouter();
@@ -31,9 +32,9 @@ export function SecretAdminLink() {
       onTouchEnd={cancelPress}
       onTouchMove={cancelPress}
       onContextMenu={(e) => e.preventDefault()}
-      className="cursor-default select-none text-sm font-semibold tracking-tight text-white/70"
+      className="inline-flex cursor-default select-none"
     >
-      NineTrax
+      <NineTraxLogo size={22} wordmarkClassName="text-sm text-white/70" />
     </span>
   );
 }

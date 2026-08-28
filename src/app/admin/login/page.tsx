@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { signInAdmin } from '@/lib/auth';
 import { Button } from '@/components/Button';
 import { Field, TextInput } from '@/components/Field';
+import { NineTraxLogo } from '@/components/Logo';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -30,9 +31,9 @@ export default function AdminLoginPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-chalk-lines p-6">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <p className="eyebrow">NineTrax</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <NineTraxLogo variant="dark" size={30} wordmarkClassName="text-xl" />
+          <h1 className="mt-3 text-xl font-bold tracking-tight text-ink">
             アプリ管理者ログイン
           </h1>
         </div>

@@ -19,6 +19,7 @@ import { Spinner } from '@/components/Spinner';
 import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
 import { TeamAvatar } from '@/components/TeamAvatar';
+import { NineTraxLogo } from '@/components/Logo';
 
 function shareUrl(teamId: string): string {
   if (typeof window === 'undefined') return `/team/${teamId}`;
@@ -127,6 +128,9 @@ export default function AdminDashboardPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-6 lg:p-10">
+      <div className="mb-6">
+        <NineTraxLogo variant="dark" size={24} wordmarkClassName="text-[15px]" />
+      </div>
       <PageHeader
         eyebrow="運営"
         title="アプリ管理"

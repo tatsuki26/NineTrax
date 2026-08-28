@@ -11,6 +11,7 @@ import { Spinner } from '@/components/Spinner';
 import { BottomNav } from '@/components/BottomNav';
 import { SideNav } from '@/components/SideNav';
 import { TeamAvatar } from '@/components/TeamAvatar';
+import { NineTraxMark } from '@/components/Logo';
 
 type State =
   | { kind: 'loading' }
@@ -57,7 +58,7 @@ export default function TeamLayout({
   if (state.kind === 'not-found') {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 bg-chalk p-6 text-center">
-        <div className="text-4xl">⚾️</div>
+        <NineTraxMark size={44} />
         <h1 className="text-xl font-bold text-ink">チームが見つかりません</h1>
         <p className="text-sm text-ink-muted">
           共有URLが正しいかご確認ください。IDが変更された可能性もあります。
@@ -78,8 +79,11 @@ export default function TeamLayout({
 
         <div className="flex min-h-dvh flex-1 flex-col">
           {/* スマホ用ヘッダー（PC は SideNav が担う） */}
-          <header className="panel-night sticky top-0 z-20 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
-            <Link href={`/team/${teamId}`} className="flex items-center gap-2">
+          <header className="panel-night sticky top-0 z-20 flex items-center justify-between gap-2 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+            <Link
+              href={`/team/${teamId}`}
+              className="flex min-w-0 items-center gap-2"
+            >
               <TeamAvatar
                 name={team.name}
                 color={team.color}
@@ -89,6 +93,9 @@ export default function TeamLayout({
               <span className="truncate text-[15px] font-bold tracking-tight text-white">
                 {team.name}
               </span>
+            </Link>
+            <Link href="/" aria-label="NineTrax トップ" className="shrink-0">
+              <NineTraxMark size={22} />
             </Link>
           </header>
 
