@@ -9,6 +9,7 @@ import { isValidTeamId } from '@/lib/ids';
 import { TeamProvider } from '@/lib/team-context';
 import { Spinner } from '@/components/Spinner';
 import { BottomNav } from '@/components/BottomNav';
+import { SideNav } from '@/components/SideNav';
 import { TeamAvatar } from '@/components/TeamAvatar';
 
 type State =
@@ -61,30 +62,42 @@ export default function TeamLayout({
         <p className="text-sm text-ink-muted">
           共有URLが正しいかご確認ください。IDが変更された可能性もあります。
         </p>
+        <Link href="/" className="mt-1 text-sm font-semibold text-field hover:underline">
+          トップへ戻る
+        </Link>
       </main>
     );
   }
 
+  const { team } = state;
+
   return (
-    <TeamProvider team={state.team}>
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-chalk">
-        <header className="panel-night sticky top-0 z-20 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <Link href={`/team/${teamId}`} className="flex items-center gap-2">
-            <TeamAvatar
-              name={state.team.name}
-              color={state.team.color}
-              logoUrl={state.team.logoUrl}
-              size={28}
-            />
-            <span className="truncate text-[15px] font-bold tracking-tight text-white">
-              {state.team.name}
-            </span>
-          </Link>
-        </header>
+    <TeamProvider team={team}>
+      <div className="min-h-dvh bg-chalk lg:flex">
+        <SideNav team={team} />
 
-        <div className="flex-1 px-4 py-4">{children}</div>
+        <div className="flex min-h-dvh flex-1 flex-col">
+          {/* スマホ用ヘッダー（PC は SideNav が担う） */}
+          <header className="panel-night sticky top-0 z-20 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+            <Link href={`/team/${teamId}`} className="flex items-center gap-2">
+              <TeamAvatar
+                name={team.name}
+                color={team.color}
+                logoUrl={team.logoUrl}
+                size={28}
+              />
+              <span className="truncate text-[15px] font-bold tracking-tight text-white">
+                {team.name}
+              </span>
+            </Link>
+          </header>
 
-        <BottomNav teamId={teamId} />
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5 lg:max-w-5xl lg:px-10 lg:py-10">
+            {children}
+          </main>
+
+          <BottomNav teamId={teamId} />
+        </div>
       </div>
     </TeamProvider>
   );

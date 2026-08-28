@@ -7,6 +7,8 @@ import { useGames, usePlayers, listAtBats } from '@/lib/db';
 import { computeByPlayer, formatRate } from '@/lib/stats';
 import { Table, Th, Td } from '@/components/Table';
 import { Spinner } from '@/components/Spinner';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function StatsPage() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -61,43 +63,46 @@ export default function StatsPage() {
     () => Object.values(atbatsByGame).flat(),
     [atbatsByGame],
   );
-  const totalByPlayer = useMemo(
-    () => computeByPlayer(allAtBats),
-    [allAtBats],
-  );
+  const totalByPlayer = useMemo(() => computeByPlayer(allAtBats), [allAtBats]);
 
   if (gamesLoading) return <Spinner />;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight text-ink">個人成績</h1>
-        {seasons.length > 0 && (
-          <select
-            value={effectiveSeason ?? ''}
-            onChange={(e) => setSeason(Number(e.target.value))}
-            className="h-9 rounded-xl border border-line bg-white px-3 text-sm font-bold text-ink"
-          >
-            {seasons.map((s) => (
-              <option key={s} value={s}>
-                {s}年
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="スタッツ"
+        title="個人成績"
+        description="打率・出塁率・長打率・OPS を通算と試合ごとに集計します。"
+        action={
+          seasons.length > 0 ? (
+            <select
+              value={effectiveSeason ?? ''}
+              onChange={(e) => setSeason(Number(e.target.value))}
+              className="h-10 rounded-xl border border-line bg-white px-3 text-sm font-bold text-ink focus:border-field focus:outline-none focus:ring-4 focus:ring-field/15"
+            >
+              {seasons.map((s) => (
+                <option key={s} value={s}>
+                  {s}年
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
+      />
 
       {effectiveSeason == null ? (
-        <p className="py-12 text-center text-sm text-ink-faint">
-          試合がありません。
-        </p>
+        <EmptyState
+          icon="📊"
+          title="まだ成績がありません"
+          hint="試合を作成して打席を記録すると、ここに集計が表示されます。"
+        />
       ) : loadingAtBats ? (
         <Spinner label="成績を集計中…" />
       ) : (
         <>
-          <section>
-            <div className="mb-2 flex items-center gap-2">
-              <h2 className="text-sm font-bold text-ink-muted">通算</h2>
+          <section className="flex flex-col gap-2">
+            <div className="flex items-baseline gap-2">
+              <h2 className="eyebrow">通算</h2>
               <span className="tnum text-xs text-ink-faint">
                 {effectiveSeason}年 ・ {seasonGames.length}試合
               </span>
@@ -105,14 +110,14 @@ export default function StatsPage() {
             <StatTable byPlayer={totalByPlayer} playerById={playerById} />
           </section>
 
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-bold text-ink-muted">試合ごと</h2>
+          <section className="flex flex-col gap-5">
+            <h2 className="eyebrow">試合ごと</h2>
             {seasonGames.map((g) => {
               const rows = atbatsByGame[g.id] ?? [];
               if (rows.length === 0) return null;
               return (
-                <div key={g.id}>
-                  <p className="tnum mb-1.5 text-xs font-semibold text-ink-faint">
+                <div key={g.id} className="flex flex-col gap-1.5">
+                  <p className="tnum text-xs font-semibold text-ink-faint">
                     {g.date} ・ vs {g.opponent || '未設定'}
                   </p>
                   <StatTable
@@ -170,9 +175,7 @@ function StatTable({
     .sort((a, b) => b.line.pa - a.line.pa || a.name.localeCompare(b.name, 'ja'));
 
   if (rows.length === 0) {
-    return (
-      <p className="py-4 text-center text-sm text-ink-faint">記録なし</p>
-    );
+    return <p className="py-4 text-center text-sm text-ink-faint">記録なし</p>;
   }
 
   return (

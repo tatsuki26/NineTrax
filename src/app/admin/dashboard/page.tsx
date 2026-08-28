@@ -16,6 +16,9 @@ import { Button } from '@/components/Button';
 import { Field, TextInput } from '@/components/Field';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { TeamAvatar } from '@/components/TeamAvatar';
 
 function shareUrl(teamId: string): string {
   if (typeof window === 'undefined') return `/team/${teamId}`;
@@ -123,37 +126,39 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-ink">アプリ管理</h1>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={async () => {
-            await signOutAdmin();
-            router.replace('/admin/login');
-          }}
-        >
-          ログアウト
-        </Button>
-      </div>
+    <main className="mx-auto max-w-4xl p-6 lg:p-10">
+      <PageHeader
+        eyebrow="運営"
+        title="アプリ管理"
+        description="全チームの状況確認と、チームの作成・削除。"
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={async () => {
+              await signOutAdmin();
+              router.replace('/admin/login');
+            }}
+          >
+            ログアウト
+          </Button>
+        }
+      />
 
       {error && (
-        <p className="mb-4 rounded-lg border border-stitch/20 bg-stitch/8 p-3 text-sm font-medium text-stitch-dark">
+        <p className="mt-6 rounded-xl border border-stitch/20 bg-stitch/8 p-3 text-sm font-medium text-stitch-dark">
           {error}
         </p>
       )}
 
-      <section className="mb-6 grid grid-cols-3 gap-3">
+      <section className="mt-6 grid grid-cols-3 gap-3">
         <Stat label="チーム数" value={teams.length} />
         <Stat label="アクティブ（60日）" value={activeCount} />
         <Stat label="総試合数" value={gameCount} />
       </section>
 
-      <section className="mb-6 rounded-2xl border border-line bg-white p-4 shadow-card">
-        <h2 className="mb-3 text-sm font-bold text-ink-muted">
-          チームを作成
-        </h2>
+      <section className="mt-6 rounded-2xl border border-line bg-white p-5 shadow-card">
+        <h2 className="eyebrow mb-3">チームを作成</h2>
         <form onSubmit={onCreate} className="flex items-end gap-2">
           <div className="flex-1">
             <Field label="チーム名">
@@ -171,22 +176,27 @@ export default function AdminDashboardPage() {
         </form>
       </section>
 
-      <section className="rounded-2xl border border-line bg-white p-4 shadow-card">
-        <h2 className="mb-3 text-sm font-bold text-ink-muted">チーム一覧</h2>
+      <section className="mt-6 rounded-2xl border border-line bg-white p-5 shadow-card">
+        <h2 className="eyebrow mb-3">チーム一覧</h2>
         {loading ? (
           <Spinner />
         ) : teams.length === 0 ? (
-          <p className="py-6 text-center text-sm text-ink-faint">
-            まだチームがありません。
-          </p>
+          <EmptyState title="まだチームがありません" />
         ) : (
           <ul className="divide-y divide-line">
             {teams.map((team) => (
-              <li key={team.id} className="flex items-center gap-3 py-3">
+              <li
+                key={team.id}
+                className="flex items-center gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-field-tint"
+              >
+                <TeamAvatar
+                  name={team.name}
+                  color={team.color}
+                  logoUrl={team.logoUrl}
+                  size={36}
+                />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-ink">
-                    {team.name}
-                  </p>
+                  <p className="truncate font-semibold text-ink">{team.name}</p>
                   <p className="mt-0.5 truncate text-xs text-ink-faint">
                     <Link
                       href={`/team/${team.id}`}
@@ -235,11 +245,9 @@ export default function AdminDashboardPage() {
 
 function Stat({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="rounded-2xl border border-line bg-white p-3 text-center shadow-card">
-      <p className="text-2xl font-bold tabular-nums text-ink">
-        {value ?? '—'}
-      </p>
-      <p className="mt-1 text-xs text-ink-faint">{label}</p>
+    <div className="rounded-2xl border border-line bg-white p-4 text-center shadow-card sm:p-5">
+      <p className="tnum text-3xl font-bold text-field">{value ?? '—'}</p>
+      <p className="mt-1 text-xs font-medium text-ink-faint">{label}</p>
     </div>
   );
 }

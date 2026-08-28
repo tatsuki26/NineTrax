@@ -7,6 +7,7 @@ import { useGame, usePlayers, updateGame } from '@/lib/db';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
 import { Spinner } from '@/components/Spinner';
+import { EmptyState } from '@/components/EmptyState';
 import { AtBatPanel } from './AtBatPanel';
 import { Scoreboard } from './Scoreboard';
 
@@ -21,9 +22,17 @@ export default function GamePage() {
   if (loading) return <Spinner label="試合を読み込み中…" />;
   if (!game) {
     return (
-      <p className="py-10 text-center text-sm text-ink-faint">
-        試合が見つかりません。
-      </p>
+      <EmptyState
+        title="試合が見つかりません"
+        hint="削除されたか、URLが正しくない可能性があります。"
+        action={
+          <Link href={`/team/${teamId}`}>
+            <Button size="sm" variant="secondary">
+              チームホームへ
+            </Button>
+          </Link>
+        }
+      />
     );
   }
 
@@ -31,9 +40,9 @@ export default function GamePage() {
   const away = game.awayScores.reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {/* スコアヘッダー */}
-      <div className="panel-night -mx-4 -mt-4 px-4 py-4">
+      <div className="panel-night rounded-2xl px-5 py-4 shadow-panel">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <p className="truncate text-base font-bold text-white">
@@ -61,8 +70,8 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* セグメントコントロール */}
-      <div className="flex gap-1 rounded-xl border border-line bg-white p-1">
+      {/* スマホ: セグメントコントロールで切り替え */}
+      <div className="flex gap-1 rounded-xl border border-line bg-white p-1 lg:hidden">
         {(
           [
             ['atbat', '打席入力'],
@@ -84,21 +93,27 @@ export default function GamePage() {
         ))}
       </div>
 
-      {tab === 'atbat' ? (
-        <AtBatPanel
-          teamId={teamId}
-          gameId={gameId}
-          game={game}
-          players={players}
-        />
-      ) : (
-        <Scoreboard teamId={teamId} gameId={gameId} game={game} />
-      )}
+      {/* スマホ: 選択中パネル / PC: 左右2カラム */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6">
+        <div className={tab === 'atbat' ? '' : 'hidden lg:block'}>
+          <AtBatPanel
+            teamId={teamId}
+            gameId={gameId}
+            game={game}
+            players={players}
+          />
+        </div>
+        <div className={tab === 'score' ? '' : 'hidden lg:block'}>
+          <div className="lg:sticky lg:top-6">
+            <Scoreboard teamId={teamId} gameId={gameId} game={game} />
+          </div>
+        </div>
+      </div>
 
-      <div className="mt-1 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <Link
           href={`/team/${teamId}/stats`}
-          className="text-sm font-semibold text-field"
+          className="text-sm font-semibold text-field hover:underline"
         >
           成績を見る →
         </Link>

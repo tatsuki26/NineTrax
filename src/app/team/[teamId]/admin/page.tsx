@@ -20,14 +20,19 @@ import { Button } from '@/components/Button';
 import { Field, TextInput } from '@/components/Field';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function TeamAdminPage() {
   const team = useTeamContext();
   const router = useRouter();
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 py-4">
-      <h1 className="text-xl font-bold text-ink">チーム管理</h1>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <PageHeader
+        eyebrow="チーム設定"
+        title="チーム管理"
+        description="チーム名・選手・試合・共有URLをまとめて管理します。"
+      />
       <TeamNameSection teamId={team.id} currentName={team.name} />
       <PlayersSection teamId={team.id} />
       <GamesSection teamId={team.id} />
@@ -38,12 +43,12 @@ export default function TeamAdminPage() {
       <div>
         <Link
           href={`/team/${team.id}/stats`}
-          className="text-sm font-medium text-field hover:underline"
+          className="text-sm font-semibold text-field hover:underline"
         >
           成績データを確認する →
         </Link>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -55,8 +60,8 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-white p-4 shadow-card">
-      <h2 className="mb-3 text-sm font-bold text-ink-muted">{title}</h2>
+    <section className="rounded-2xl border border-line bg-white p-4 shadow-card sm:p-5">
+      <h2 className="eyebrow mb-3">{title}</h2>
       {children}
     </section>
   );
