@@ -20,14 +20,19 @@ import { Button } from '@/components/Button';
 import { Field, TextInput } from '@/components/Field';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function TeamAdminPage() {
   const team = useTeamContext();
   const router = useRouter();
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 py-4">
-      <h1 className="text-xl font-bold text-slate-900">チーム管理</h1>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <PageHeader
+        eyebrow="チーム設定"
+        title="チーム管理"
+        description="チーム名・選手・試合・共有URLをまとめて管理します。"
+      />
       <TeamNameSection teamId={team.id} currentName={team.name} />
       <PlayersSection teamId={team.id} />
       <GamesSection teamId={team.id} />
@@ -38,12 +43,12 @@ export default function TeamAdminPage() {
       <div>
         <Link
           href={`/team/${team.id}/stats`}
-          className="text-sm font-medium text-brand hover:underline"
+          className="text-sm font-semibold text-field hover:underline"
         >
           成績データを確認する →
         </Link>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -55,8 +60,8 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl bg-white p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold text-slate-700">{title}</h2>
+    <section className="rounded-2xl border border-line bg-white p-4 shadow-card sm:p-5">
+      <h2 className="eyebrow mb-3">{title}</h2>
       {children}
     </section>
   );
@@ -162,12 +167,12 @@ function PlayersSection({ teamId }: { teamId: string }) {
         <Spinner />
       ) : (
         <>
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-line">
             {active.map((p) => (
               <PlayerRow key={p.id} teamId={teamId} player={p} />
             ))}
             {active.length === 0 && (
-              <li className="py-4 text-center text-sm text-slate-500">
+              <li className="py-4 text-center text-sm text-ink-faint">
                 選手が登録されていません。
               </li>
             )}
@@ -175,14 +180,14 @@ function PlayersSection({ teamId }: { teamId: string }) {
 
           {archived.length > 0 && (
             <details className="mt-4">
-              <summary className="cursor-pointer text-sm text-slate-500">
+              <summary className="cursor-pointer text-sm text-ink-faint">
                 削除済みの選手（{archived.length}）
               </summary>
-              <ul className="mt-2 divide-y divide-slate-100">
+              <ul className="mt-2 divide-y divide-line">
                 {archived.map((p) => (
                   <li
                     key={p.id}
-                    className="flex items-center justify-between py-2 text-sm text-slate-500"
+                    className="flex items-center justify-between py-2 text-sm text-ink-faint"
                   >
                     <span>
                       {p.number != null && (
@@ -251,9 +256,9 @@ function PlayerRow({ teamId, player }: { teamId: string; player: Player }) {
 
   return (
     <li className="flex items-center justify-between py-2">
-      <span className="text-slate-800">
+      <span className="text-ink">
         {player.number != null && (
-          <span className="mr-2 tabular-nums text-slate-500">
+          <span className="mr-2 tabular-nums text-ink-faint">
             #{player.number}
           </span>
         )}
@@ -316,21 +321,21 @@ function GamesSection({ teamId }: { teamId: string }) {
       {loading ? (
         <Spinner />
       ) : games.length === 0 ? (
-        <p className="py-4 text-center text-sm text-slate-500">
+        <p className="py-4 text-center text-sm text-ink-faint">
           試合がありません。
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-line">
           {games.map((g) => (
             <li key={g.id} className="flex items-center justify-between py-2">
               <Link
                 href={`/team/${teamId}/game/${g.id}`}
-                className="min-w-0 flex-1 truncate text-slate-800 hover:text-brand"
+                className="min-w-0 flex-1 truncate text-ink hover:text-field"
               >
-                <span className="tabular-nums text-slate-500">{g.date}</span>{' '}
+                <span className="tabular-nums text-ink-faint">{g.date}</span>{' '}
                 vs {g.opponent || '未設定'}
                 {g.status === 'finished' && (
-                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                  <span className="ml-2 rounded bg-chalk px-1.5 py-0.5 text-xs text-ink-faint">
                     終了
                   </span>
                 )}
@@ -408,10 +413,10 @@ function ShareUrlSection({
 
   return (
     <Card title="共有URL（チームID）">
-      <p className="mb-2 break-all rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+      <p className="mb-2 break-all rounded-lg bg-chalk p-3 text-sm text-ink-muted">
         {url}
       </p>
-      <p className="mb-3 text-xs text-slate-500">
+      <p className="mb-3 text-xs text-ink-faint">
         このURLを知っている人は誰でもチームの記録を閲覧・入力できます。
         漏れた場合は再発行してください（古いURLは使えなくなります）。
       </p>

@@ -2,21 +2,25 @@
 
 import type { ButtonHTMLAttributes } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-brand text-white hover:bg-brand-dark disabled:bg-slate-300',
+  primary:
+    'bg-field text-white shadow-sm hover:bg-field-dark active:bg-field-dark disabled:bg-ink-faint/40 disabled:shadow-none',
+  accent:
+    'bg-clay text-white shadow-sm hover:bg-clay-dark active:bg-clay-dark disabled:bg-ink-faint/40 disabled:shadow-none',
   secondary:
-    'bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 disabled:text-slate-400',
-  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
-  ghost: 'bg-transparent text-brand hover:bg-brand/10',
+    'bg-white text-ink border border-line hover:bg-chalk active:bg-chalk disabled:text-ink-faint',
+  danger:
+    'bg-stitch text-white shadow-sm hover:bg-stitch-dark active:bg-stitch-dark disabled:bg-ink-faint/40',
+  ghost: 'bg-transparent text-field hover:bg-field/10 active:bg-field/15',
 };
 
 const SIZE: Record<Size, string> = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-11 px-4 text-base',
-  lg: 'h-14 px-5 text-lg',
+  sm: 'h-9 px-3 text-sm rounded-lg',
+  md: 'h-11 px-4 text-[15px] rounded-xl',
+  lg: 'h-14 px-6 text-base rounded-2xl',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -37,9 +41,10 @@ export function Button({
     <button
       type={type}
       className={[
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
-        'disabled:cursor-not-allowed',
+        'inline-flex select-none items-center justify-center gap-1.5 font-semibold',
+        'transition-[background-color,transform] duration-100 active:scale-[0.98]',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-field',
+        'disabled:cursor-not-allowed disabled:active:scale-100',
         VARIANT[variant],
         SIZE[size],
         fullWidth ? 'w-full' : '',

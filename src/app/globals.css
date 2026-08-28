@@ -6,12 +6,96 @@
   color-scheme: light;
 }
 
-html,
-body {
-  @apply bg-slate-50 text-slate-900;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html,
+  body {
+    @apply bg-chalk text-ink;
+    font-feature-settings: 'palt' 1;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: rgba(15, 123, 95, 0.18);
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+
+  /* iOS のズーム防止（フォーム入力は 16px 以上） */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
-body {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer components {
+  /* スコアボードなどの数字表示 */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: 0.01em;
+  }
+
+  /* ナイター配色のパネル（ヘッダー・サイドバー・スコアボード）
+     斜めのライト＋うっすらしたベースラインでナイター照明の奥行きを出す */
+  .panel-night {
+    @apply bg-night text-white;
+    background-image:
+      radial-gradient(
+        120% 80% at 15% 0%,
+        rgba(96, 165, 250, 0.16) 0%,
+        rgba(96, 165, 250, 0) 55%
+      ),
+      radial-gradient(
+        90% 60% at 100% 100%,
+        rgba(199, 93, 59, 0.16) 0%,
+        rgba(199, 93, 59, 0) 60%
+      ),
+      linear-gradient(180deg, #1b2d4c 0%, #122139 100%);
+  }
+
+  /* セクション見出しの上に置くラベル */
+  .eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-ink-faint;
+  }
+
+  /* PC でのカードのホバー浮き上がり */
+  @media (hover: hover) and (pointer: fine) {
+    .card-hover {
+      transition:
+        transform 140ms ease,
+        box-shadow 140ms ease,
+        border-color 140ms ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-2px);
+      border-color: rgba(15, 123, 95, 0.35);
+      box-shadow:
+        0 2px 4px rgba(28, 27, 23, 0.05),
+        0 14px 32px -12px rgba(18, 33, 57, 0.28);
+    }
+  }
+}
+
+@layer utilities {
+  /* チョーク背景にうっすらグリッド（ダイヤモンドのライン）を敷く */
+  .bg-chalk-lines {
+    background-color: theme('colors.chalk');
+    background-image:
+      linear-gradient(rgba(28, 27, 23, 0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(28, 27, 23, 0.022) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
 }

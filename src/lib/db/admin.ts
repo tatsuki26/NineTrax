@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import type { Team } from '@/lib/types';
+import { normalizeTeamColor } from '@/lib/team-colors';
 import { getDb } from '@/lib/firebase';
 import { teamsCol, teamDoc, playersCol, gamesCol, atbatsCol } from './refs';
 
@@ -22,14 +23,20 @@ export interface TeamWithStats extends Team {
 
 export async function listAllTeams(): Promise<Team[]> {
   const snap = await getDocs(query(teamsCol(), orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => ({
-    id: d.id,
-    name: (d.data().name as string) ?? '',
-    createdAt:
-      typeof d.data().createdAt?.toMillis === 'function'
-        ? d.data().createdAt.toMillis()
-        : Date.now(),
-  }));
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      name: (data.name as string) ?? '',
+      color: normalizeTeamColor(data.color),
+      logoUrl:
+        typeof data.logoUrl === 'string' && data.logoUrl ? data.logoUrl : null,
+      createdAt:
+        typeof data.createdAt?.toMillis === 'function'
+          ? data.createdAt.toMillis()
+          : Date.now(),
+    };
+  });
 }
 
 export async function countAllGames(): Promise<number> {

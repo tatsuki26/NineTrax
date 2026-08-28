@@ -8,6 +8,9 @@ import { getTeam } from '@/lib/db';
 import { isValidTeamId } from '@/lib/ids';
 import { TeamProvider } from '@/lib/team-context';
 import { Spinner } from '@/components/Spinner';
+import { BottomNav } from '@/components/BottomNav';
+import { SideNav } from '@/components/SideNav';
+import { TeamAvatar } from '@/components/TeamAvatar';
 
 type State =
   | { kind: 'loading' }
@@ -45,7 +48,7 @@ export default function TeamLayout({
 
   if (state.kind === 'loading') {
     return (
-      <div className="min-h-dvh">
+      <div className="flex min-h-dvh items-center justify-center bg-chalk">
         <Spinner label="チーム情報を読み込み中…" />
       </div>
     );
@@ -53,38 +56,48 @@ export default function TeamLayout({
 
   if (state.kind === 'not-found') {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
-        <h1 className="text-xl font-bold text-slate-900">チームが見つかりません</h1>
-        <p className="text-sm text-slate-600">
+      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 bg-chalk p-6 text-center">
+        <div className="text-4xl">⚾️</div>
+        <h1 className="text-xl font-bold text-ink">チームが見つかりません</h1>
+        <p className="text-sm text-ink-muted">
           共有URLが正しいかご確認ください。IDが変更された可能性もあります。
         </p>
+        <Link href="/" className="mt-1 text-sm font-semibold text-field hover:underline">
+          トップへ戻る
+        </Link>
       </main>
     );
   }
 
+  const { team } = state;
+
   return (
-    <TeamProvider team={state.team}>
-      <div className="mx-auto min-h-dvh max-w-md bg-slate-50">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-          <Link
-            href={`/team/${teamId}`}
-            className="truncate text-base font-bold text-slate-900"
-          >
-            {state.team.name}
-          </Link>
-          <nav className="flex shrink-0 gap-3 text-sm">
-            <Link href={`/team/${teamId}`} className="text-slate-600 hover:text-brand">
-              ホーム
+    <TeamProvider team={team}>
+      <div className="min-h-dvh bg-chalk lg:flex">
+        <SideNav team={team} />
+
+        <div className="flex min-h-dvh flex-1 flex-col">
+          {/* スマホ用ヘッダー（PC は SideNav が担う） */}
+          <header className="panel-night sticky top-0 z-20 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+            <Link href={`/team/${teamId}`} className="flex items-center gap-2">
+              <TeamAvatar
+                name={team.name}
+                color={team.color}
+                logoUrl={team.logoUrl}
+                size={28}
+              />
+              <span className="truncate text-[15px] font-bold tracking-tight text-white">
+                {team.name}
+              </span>
             </Link>
-            <Link
-              href={`/team/${teamId}/stats`}
-              className="text-slate-600 hover:text-brand"
-            >
-              成績
-            </Link>
-          </nav>
-        </header>
-        <div className="p-4">{children}</div>
+          </header>
+
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5 lg:max-w-5xl lg:px-10 lg:py-10">
+            {children}
+          </main>
+
+          <BottomNav teamId={teamId} />
+        </div>
       </div>
     </TeamProvider>
   );

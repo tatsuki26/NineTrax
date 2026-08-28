@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { signInAdmin } from '@/lib/auth';
 import { Button } from '@/components/Button';
 import { Field, TextInput } from '@/components/Field';
@@ -27,31 +28,48 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 p-6">
-      <h1 className="text-xl font-bold text-slate-900">アプリ管理者ログイン</h1>
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="メールアドレス">
-          <TextInput
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </Field>
-        <Field label="パスワード" error={error ?? undefined}>
-          <TextInput
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
-        <Button type="submit" fullWidth disabled={busy}>
-          {busy ? 'ログイン中…' : 'ログイン'}
-        </Button>
-      </form>
+    <main className="flex min-h-dvh items-center justify-center bg-chalk-lines p-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <p className="eyebrow">NineTrax</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">
+            アプリ管理者ログイン
+          </h1>
+        </div>
+
+        <form
+          onSubmit={onSubmit}
+          className="flex flex-col gap-4 rounded-2xl border border-line bg-white p-6 shadow-card"
+        >
+          <Field label="メールアドレス">
+            <TextInput
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="パスワード" error={error ?? undefined}>
+            <TextInput
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+          <Button type="submit" fullWidth size="lg" disabled={busy}>
+            {busy ? 'ログイン中…' : 'ログイン'}
+          </Button>
+        </form>
+
+        <p className="mt-4 text-center text-sm">
+          <Link href="/" className="font-semibold text-field hover:underline">
+            ← トップへ戻る
+          </Link>
+        </p>
+      </div>
     </main>
   );
 }

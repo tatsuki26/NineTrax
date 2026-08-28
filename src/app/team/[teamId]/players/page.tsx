@@ -11,9 +11,12 @@ import {
   unarchivePlayer,
 } from '@/lib/db';
 import { Button } from '@/components/Button';
+import { Card, CardBody } from '@/components/Card';
 import { Field, TextInput } from '@/components/Field';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function PlayersPage() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -43,86 +46,92 @@ export default function PlayersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-bold text-slate-900">選手管理</h1>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="ロスター"
+        title="選手管理"
+        description="登録した選手は打順・スコア・成績で使えます。"
+      />
 
-      <form
-        onSubmit={onAdd}
-        className="flex items-end gap-2 rounded-xl bg-white p-4 shadow-sm"
-      >
-        <div className="flex-1">
-          <Field label="名前">
-            <TextInput
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="山田 太郎"
-            />
-          </Field>
-        </div>
-        <div className="w-20">
-          <Field label="背番号">
-            <TextInput
-              type="number"
-              inputMode="numeric"
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-            />
-          </Field>
-        </div>
-        <Button type="submit" disabled={busy}>
-          追加
-        </Button>
-      </form>
+      <Card>
+        <CardBody>
+          <form onSubmit={onAdd} className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[180px] flex-1">
+              <Field label="名前">
+                <TextInput
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  placeholder="山田 太郎"
+                />
+              </Field>
+            </div>
+            <div className="w-24">
+              <Field label="背番号">
+                <TextInput
+                  type="number"
+                  inputMode="numeric"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                />
+              </Field>
+            </div>
+            <Button type="submit" disabled={busy}>
+              追加
+            </Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        {loading ? (
-          <Spinner />
-        ) : (
-          <>
-            <ul className="divide-y divide-slate-100">
+      <Card>
+        <CardBody className="p-2 sm:p-3">
+          {loading ? (
+            <Spinner />
+          ) : active.length === 0 ? (
+            <EmptyState
+              icon="🧢"
+              title="選手がいません"
+              hint="上のフォームから登録してください。"
+            />
+          ) : (
+            <ul className="grid gap-1 sm:grid-cols-2">
               {active.map((p) => (
                 <PlayerRow key={p.id} teamId={teamId} player={p} />
               ))}
-              {active.length === 0 && (
-                <li className="py-4 text-center text-sm text-slate-500">
-                  選手がいません。
-                </li>
-              )}
             </ul>
+          )}
 
-            {archived.length > 0 && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm text-slate-500">
-                  削除済み（{archived.length}）
-                </summary>
-                <ul className="mt-2 divide-y divide-slate-100">
-                  {archived.map((p) => (
-                    <li
-                      key={p.id}
-                      className="flex items-center justify-between py-2 text-sm text-slate-500"
+          {archived.length > 0 && (
+            <details className="mt-2 px-2 pb-1">
+              <summary className="cursor-pointer py-2 text-sm text-ink-faint">
+                削除済み（{archived.length}）
+              </summary>
+              <ul className="divide-y divide-line">
+                {archived.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between py-2 text-sm text-ink-faint"
+                  >
+                    <span>
+                      {p.number != null && (
+                        <span className="tnum mr-2">#{p.number}</span>
+                      )}
+                      {p.name}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => unarchivePlayer(teamId, p.id)}
                     >
-                      <span>
-                        {p.number != null && (
-                          <span className="mr-2 tabular-nums">#{p.number}</span>
-                        )}
-                        {p.name}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => unarchivePlayer(teamId, p.id)}
-                      >
-                        復元
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </>
-        )}
-      </div>
+                      復元
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }
@@ -145,18 +154,18 @@ function PlayerRow({ teamId, player }: { teamId: string; player: Player }) {
 
   if (editing) {
     return (
-      <li className="flex items-center gap-2 py-2">
+      <li className="flex items-center gap-2 rounded-xl bg-chalk/60 px-2 py-2">
         <TextInput
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="flex-1"
+          className="h-10 flex-1"
         />
         <TextInput
           type="number"
           inputMode="numeric"
           value={number}
           onChange={(e) => setNumber(e.target.value)}
-          className="w-16"
+          className="h-10 w-16"
         />
         <Button size="sm" onClick={onSave}>
           保存
@@ -169,13 +178,11 @@ function PlayerRow({ teamId, player }: { teamId: string; player: Player }) {
   }
 
   return (
-    <li className="flex items-center justify-between py-2">
-      <span className="text-slate-800">
-        {player.number != null && (
-          <span className="mr-2 tabular-nums text-slate-500">
-            #{player.number}
-          </span>
-        )}
+    <li className="flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors hover:bg-field-tint">
+      <span className="flex items-center gap-2.5 text-ink">
+        <span className="tnum grid h-7 w-7 place-items-center rounded-lg bg-field-tint text-xs font-bold text-field">
+          {player.number ?? '–'}
+        </span>
         {player.name}
       </span>
       <span className="flex gap-1">

@@ -7,8 +7,8 @@ import type {
 } from 'react';
 
 const inputBase =
-  'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 ' +
-  'focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30';
+  'h-12 w-full rounded-xl border border-line bg-white px-3.5 text-ink placeholder:text-ink-faint ' +
+  'transition-colors focus:border-field focus:outline-none focus:ring-4 focus:ring-field/15';
 
 export function Field({
   label,
@@ -23,15 +23,17 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">
+      <span className="mb-1.5 block text-sm font-semibold text-ink-muted">
         {label}
       </span>
       {children}
       {hint && !error && (
-        <span className="mt-1 block text-xs text-slate-500">{hint}</span>
+        <span className="mt-1 block text-xs text-ink-faint">{hint}</span>
       )}
       {error && (
-        <span className="mt-1 block text-xs text-red-600">{error}</span>
+        <span className="mt-1 block text-xs font-medium text-stitch-dark">
+          {error}
+        </span>
       )}
     </label>
   );
@@ -44,5 +46,14 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const { className = '', ...rest } = props;
-  return <select className={`${inputBase} ${className}`} {...rest} />;
+  return (
+    <select
+      className={`${inputBase} appearance-none bg-[length:20px] bg-[right_0.75rem_center] bg-no-repeat pr-10 ${className}`}
+      style={{
+        backgroundImage:
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none' stroke='%238B877B' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")",
+      }}
+      {...rest}
+    />
+  );
 }

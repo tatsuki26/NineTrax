@@ -13,6 +13,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import type { Team } from '@/lib/types';
+import { normalizeTeamColor } from '@/lib/team-colors';
 import { generateTeamId } from '@/lib/ids';
 import { getDb } from '@/lib/firebase';
 import {
@@ -38,24 +39,49 @@ export async function getTeam(teamId: string): Promise<Team | null> {
   return {
     id: snap.id,
     name: data.name ?? '',
+    color: normalizeTeamColor(data.color),
+    logoUrl: typeof data.logoUrl === 'string' && data.logoUrl ? data.logoUrl : null,
     createdAt: toMillis(data.createdAt),
   };
 }
 
-export async function createTeam(name: string): Promise<Team> {
+export interface CreateTeamInput {
+  color?: string;
+  /** 縮小済みの data URL、または null。 */
+  logoUrl?: string | null;
+}
+
+export async function createTeam(
+  name: string,
+  input: CreateTeamInput = {},
+): Promise<Team> {
+  const color = normalizeTeamColor(input.color);
+  const logoUrl = input.logoUrl ?? null;
+
   // ID 衝突は極めて稀だが一応リトライする
   for (let attempt = 0; attempt < 5; attempt++) {
     const id = generateTeamId();
     const ref = teamDoc(id);
     if ((await getDoc(ref)).exists()) continue;
-    await setDoc(ref, { name, createdAt: serverTimestamp() });
-    return { id, name, createdAt: Date.now() };
+    await setDoc(ref, { name, color, logoUrl, createdAt: serverTimestamp() });
+    return { id, name, color, logoUrl, createdAt: Date.now() };
   }
   throw new Error('チームIDの生成に失敗しました（衝突が続きました）');
 }
 
 export async function updateTeamName(teamId: string, name: string): Promise<void> {
   await updateDoc(teamDoc(teamId), { name });
+}
+
+export async function updateTeamAppearance(
+  teamId: string,
+  patch: { color?: string; logoUrl?: string | null },
+): Promise<void> {
+  const data: Record<string, unknown> = {};
+  if (patch.color !== undefined) data.color = normalizeTeamColor(patch.color);
+  if (patch.logoUrl !== undefined) data.logoUrl = patch.logoUrl ?? null;
+  if (Object.keys(data).length === 0) return;
+  await updateDoc(teamDoc(teamId), data);
 }
 
 // チームIDの再発行。新IDでチームを作り直し、players / games / games/*/atbats を移行してから
