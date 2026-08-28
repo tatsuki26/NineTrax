@@ -2,12 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { AtBat, AtBatResult, Game, Player } from '@/lib/types';
-import { AT_BAT_RESULTS, AT_BAT_RESULT_LABELS } from '@/lib/types';
-import { useAtBats, addAtBat, updateAtBat, deleteAtBat } from '@/lib/db';
+import type { AtBat, AtBatInput, AtBatResult, Game, Player } from '@/lib/types';
+import { AT_BAT_RESULTS, AT_BAT_RESULT_LABELS, EMPTY_BASES } from '@/lib/types';
+import { useAtBats, addAtBat, updateAtBat, deleteAtBat, updateGame } from '@/lib/db';
+import {
+  applyPlateResult,
+  quickDetail,
+  FIELD_POS_LABELS,
+  HIT_ZONE_LABELS,
+  TRAJECTORY_LABELS,
+} from '@/lib/plate';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
+import { PlateSheet, type PlateSheetResult } from './PlateSheet';
 
 // 打席結果のカテゴリ（配色・ログのドット色に使う）
 type Cat = 'hit' | 'onbase' | 'out' | 'sac' | 'error';
@@ -111,21 +119,48 @@ export function AtBatPanel({
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<AtBat | null>(null);
   const [deleting, setDeleting] = useState<AtBat | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const bases = game.baseState;
+  const outs = game.outs;
+  const nameOf = (id: string) => playerById.get(id)?.name ?? '(不明)';
+
+  // 打席保存 + 塁状況/アウトの更新。3アウトなら攻守交代（次イニングへ・塁リセット）。
+  async function commit(input: AtBatInput, nextBases: typeof bases, nextOuts: number) {
+    await addAtBat(teamId, gameId, input);
+    if (nextOuts >= 3) {
+      await updateGame(teamId, gameId, {
+        baseState: { ...EMPTY_BASES },
+        outs: 0,
+      });
+      setInningOverride(inning + 1);
+    } else {
+      await updateGame(teamId, gameId, { baseState: nextBases, outs: nextOuts });
+    }
+    setRbi(0);
+    setManualPlayerId(null);
+  }
 
   async function record(result: AtBatResult) {
     if (!effectivePlayerId || busy) return;
     setBusy(true);
     try {
-      await addAtBat(teamId, gameId, {
-        playerId: effectivePlayerId,
-        order,
-        inning,
-        result,
-        rbi,
-      });
-      setRbi(0);
-      setManualPlayerId(null);
-      setInningOverride(null);
+      const detail = quickDetail(result, bases);
+      const t = applyPlateResult(bases, effectivePlayerId, detail);
+      await commit(
+        { playerId: effectivePlayerId, order, inning, result, rbi, detail },
+        t.next,
+        Math.min(3, outs + t.outsAdded),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSheetCommit(r: PlateSheetResult) {
+    setBusy(true);
+    try {
+      await commit(r.input, r.nextBaseState, r.nextOuts);
     } finally {
       setBusy(false);
     }
@@ -153,32 +188,44 @@ export function AtBatPanel({
     <div className="flex flex-col gap-4">
       {/* 現在の打者 */}
       <div className="rounded-2xl border border-line bg-white shadow-card">
-        {/* イニング操作 */}
-        <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-          <span className="text-xs font-bold text-ink-faint">イニング</span>
+        {/* イニング操作 + 塁状況 */}
+        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setInningOverride(Math.max(1, inning - 1))}
+              onClick={() => {
+                setInningOverride(Math.max(1, inning - 1));
+                void updateGame(teamId, gameId, {
+                  baseState: { ...EMPTY_BASES },
+                  outs: 0,
+                });
+              }}
               disabled={inning <= 1}
               className="grid h-8 w-8 place-items-center rounded-lg border border-line text-lg text-ink-muted active:bg-chalk disabled:opacity-30"
               aria-label="前のイニング"
             >
               −
             </button>
-            <span className="tnum w-14 text-center text-lg font-bold text-ink">
+            <span className="tnum w-12 text-center text-lg font-bold text-ink">
               {inning}
               <span className="ml-0.5 text-xs font-semibold text-ink-faint">回</span>
             </span>
             <button
               type="button"
-              onClick={() => setInningOverride(inning + 1)}
+              onClick={() => {
+                setInningOverride(inning + 1);
+                void updateGame(teamId, gameId, {
+                  baseState: { ...EMPTY_BASES },
+                  outs: 0,
+                });
+              }}
               className="grid h-8 w-8 place-items-center rounded-lg border border-line text-lg text-ink-muted active:bg-chalk"
-              aria-label="次のイニング"
+              aria-label="次のイニング（攻守交代）"
             >
               ＋
             </button>
           </div>
+          <BaseOutsMini bases={bases} outs={outs} />
         </div>
 
         <div className="p-4">
@@ -214,8 +261,21 @@ export function AtBatPanel({
         </div>
       </div>
 
-      {/* 結果ボタン */}
+      {/* 詳細入力（打球方向・守備・走者まで） */}
+      <button
+        type="button"
+        disabled={busy || !effectivePlayerId}
+        onClick={() => setSheetOpen(true)}
+        className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-clay text-[15px] font-bold text-white shadow-sm active:scale-[0.98] disabled:opacity-50"
+      >
+        ⚾️ 詳細入力（打球方向・守備・走者）
+      </button>
+
+      {/* クイック入力 */}
       <div>
+        <p className="mb-1.5 px-1 text-xs font-bold text-ink-faint">
+          クイック入力
+        </p>
         <div className="grid grid-cols-3 gap-2">
           {AT_BAT_RESULTS.map((r) => (
             <button
@@ -223,7 +283,7 @@ export function AtBatPanel({
               type="button"
               disabled={busy}
               onClick={() => record(r)}
-              className={`h-[68px] rounded-2xl border text-[15px] font-bold shadow-sm transition-transform active:scale-[0.96] disabled:opacity-50 ${CAT_BTN[RESULT_CAT[r]]}`}
+              className={`h-[60px] rounded-2xl border text-[15px] font-bold shadow-sm transition-transform active:scale-[0.96] disabled:opacity-50 ${CAT_BTN[RESULT_CAT[r]]}`}
             >
               {AT_BAT_RESULT_LABELS[r]}
             </button>
@@ -297,6 +357,11 @@ export function AtBatPanel({
                   <span className="min-w-0 flex-1 truncate text-sm text-ink">
                     <span className="tnum text-ink-faint">{a.order}</span>{' '}
                     {p?.name ?? '(不明)'}
+                    {a.detail && (
+                      <span className="ml-1 text-xs text-ink-faint">
+                        {describeDetail(a.detail)}
+                      </span>
+                    )}
                   </span>
                   <span className="shrink-0 text-sm font-bold text-ink">
                     {AT_BAT_RESULT_LABELS[a.result]}
@@ -359,8 +424,94 @@ export function AtBatPanel({
       >
         <p>削除すると打順が1つ戻ります。誤入力の訂正にお使いください。</p>
       </Modal>
+
+      <PlateSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        batterId={effectivePlayerId}
+        batterName={currentPlayer?.name ?? ''}
+        order={order}
+        inning={inning}
+        baseState={bases}
+        currentOuts={outs}
+        playerName={nameOf}
+        onCommit={onSheetCommit}
+      />
     </div>
   );
+}
+
+function BaseOutsMini({
+  bases,
+  outs,
+}: {
+  bases: Game['baseState'];
+  outs: number;
+}) {
+  const on = (v: string | null) =>
+    v ? 'fill-field stroke-field-dark' : 'fill-white stroke-line';
+  return (
+    <div className="flex items-center gap-2.5">
+      {/* 塁ダイヤ */}
+      <svg viewBox="0 0 40 34" className="h-7 w-8" aria-label="塁状況">
+        <rect
+          x="26"
+          y="13"
+          width="9"
+          height="9"
+          transform="rotate(45 30.5 17.5)"
+          className={`${on(bases.first)} [stroke-width:1.5]`}
+        />
+        <rect
+          x="15.5"
+          y="3"
+          width="9"
+          height="9"
+          transform="rotate(45 20 7.5)"
+          className={`${on(bases.second)} [stroke-width:1.5]`}
+        />
+        <rect
+          x="5"
+          y="13"
+          width="9"
+          height="9"
+          transform="rotate(45 9.5 17.5)"
+          className={`${on(bases.third)} [stroke-width:1.5]`}
+        />
+      </svg>
+      {/* アウト */}
+      <div className="flex items-center gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={`h-2.5 w-2.5 rounded-full ${
+              i < outs ? 'bg-stitch' : 'bg-line'
+            }`}
+          />
+        ))}
+        <span className="ml-0.5 text-xs font-bold text-ink-faint">
+          {outs}アウト
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function describeDetail(d: AtBat['detail']): string {
+  if (!d) return '';
+  const parts: string[] = [];
+  if (d.battedBall) {
+    parts.push(
+      `${HIT_ZONE_LABELS[d.battedBall.zone]}${TRAJECTORY_LABELS[d.battedBall.trajectory]}`,
+    );
+  }
+  if (d.fielding && d.fielding.sequence.length > 0) {
+    parts.push(d.fielding.sequence.map((p) => FIELD_POS_LABELS[p]).join('-'));
+  }
+  if (d.fielding?.fieldersChoice) parts.push('野選');
+  if (d.brokenDoublePlay) parts.push('併殺崩れ');
+  else if (d.doublePlay) parts.push('併殺');
+  return parts.join(' ');
 }
 
 function Legend({ dot, label }: { dot: string; label: string }) {
