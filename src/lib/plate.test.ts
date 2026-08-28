@@ -1,176 +1,113 @@
 import { describe, it, expect } from 'vitest';
-import {
-  deriveResult,
-  applyPlateResult,
-  suggestRbi,
-  looksLikeBrokenDoublePlay,
-} from './plate';
-import type { AtBatDetail, BaseState } from './types';
+import { buildAtBat, choiceMeta, describeDetail, RESULT_CHOICES } from './plate';
 
-const bases = (b: Partial<BaseState> = {}): BaseState => ({
-  first: null,
-  second: null,
-  third: null,
-  ...b,
-});
-
-describe('deriveResult', () => {
-  it('ヒット系はそのまま', () => {
-    expect(deriveResult('double', {})).toBe('double');
-    expect(deriveResult('homerun', {})).toBe('homerun');
-    expect(deriveResult('walk', {})).toBe('walk');
-    expect(deriveResult('strikeout', {})).toBe('strikeout');
+describe('buildAtBat', () => {
+  it('単打 + 左中間', () => {
+    const r = buildAtBat('single', 'gap_lc');
+    expect(r.result).toBe('single');
+    expect(r.detail).toEqual({ zone: 'gap_lc' });
   });
 
-  it('ゴロで打者アウト → out', () => {
-    expect(
-      deriveResult('grounder', { batterEndBase: 0, runners: [] }),
-    ).toBe('out');
+  it('ゴロ + 二塁 → result out・kind grounder', () => {
+    const r = buildAtBat('grounder', '2b');
+    expect(r.result).toBe('out');
+    expect(r.detail).toEqual({ kind: 'grounder', zone: '2b' });
   });
 
-  it('失策で出塁 → reachedOnError', () => {
-    expect(
-      deriveResult('grounder', {
-        batterEndBase: 1,
-        fielding: { sequence: [6], error: { pos: 6, kind: 'field' } },
-      }),
-    ).toBe('reachedOnError');
+  it('併殺打 → out・gidp・grounder', () => {
+    const r = buildAtBat('gidp', 'ss');
+    expect(r.result).toBe('out');
+    expect(r.detail).toEqual({ kind: 'grounder', gidp: true, zone: 'ss' });
   });
 
-  it('バント + 走者進塁で打者アウト → sacBunt', () => {
-    expect(
-      deriveResult('bunt', {
-        batterEndBase: 0,
-        runners: [{ playerId: 'r1', from: 1, to: 2 }],
-      }),
-    ).toBe('sacBunt');
+  it('三振は方向を持たない', () => {
+    const r = buildAtBat('strikeout', null);
+    expect(r.result).toBe('strikeout');
+    expect(r.detail).toBeUndefined();
   });
 
-  it('フライ + 三塁走者生還で打者アウト → sacFly', () => {
-    expect(
-      deriveResult('flyball', {
-        batterEndBase: 0,
-        runners: [{ playerId: 'r3', from: 3, to: 4 }],
-      }),
-    ).toBe('sacFly');
+  it('四球は方向不要・detail なし', () => {
+    expect(buildAtBat('walk', null)).toEqual({
+      result: 'walk',
+      detail: undefined,
+    });
   });
 
-  it('野選（打者セーフ・走者アウト）→ out（打数につく）', () => {
-    expect(
-      deriveResult('grounder', {
-        batterEndBase: 1,
-        fielding: { sequence: [4, 6], fieldersChoice: true },
-        runners: [{ playerId: 'r1', from: 1, to: 0 }],
-      }),
-    ).toBe('out');
+  it('犠飛 + センター', () => {
+    const r = buildAtBat('sacFly', 'cf');
+    expect(r.result).toBe('sacFly');
+    expect(r.detail).toEqual({ kind: 'flyball', zone: 'cf' });
   });
 
-  it('打球で打者セーフ・失策も野選もなし → 内野安打 single', () => {
-    expect(
-      deriveResult('grounder', {
-        batterEndBase: 1,
-        fielding: { sequence: [6] },
-      }),
-    ).toBe('single');
+  it('失策出塁 + 三遊間', () => {
+    const r = buildAtBat('reachedOnError', 'gap_56');
+    expect(r.result).toBe('reachedOnError');
+    expect(r.detail).toEqual({ zone: 'gap_56' });
+  });
+
+  it('方向が「不明」でも記録できる', () => {
+    const r = buildAtBat('double', 'unknown');
+    expect(r.result).toBe('double');
+    expect(r.detail).toEqual({ zone: 'unknown' });
+  });
+
+  it('方向未選択なら zone を含めない', () => {
+    const r = buildAtBat('flyball', null);
+    expect(r.result).toBe('out');
+    expect(r.detail).toEqual({ kind: 'flyball' });
+  });
+
+  it('不明（結果自体） → out', () => {
+    expect(buildAtBat('unknown', null).result).toBe('out');
   });
 });
 
-describe('applyPlateResult', () => {
-  it('走者なし・ゴロアウト', () => {
-    const t = applyPlateResult(bases(), 'B', {
-      batterEndBase: 0,
-      runners: [],
-    });
-    expect(t.next).toEqual(bases());
-    expect(t.outsAdded).toBe(1);
-    expect(t.runsScored).toBe(0);
+describe('RESULT_CHOICES / choiceMeta', () => {
+  it('全 choice が公式 AtBatResult にマップされる', () => {
+    const valid = new Set([
+      'single',
+      'double',
+      'triple',
+      'homerun',
+      'walk',
+      'hitByPitch',
+      'sacBunt',
+      'sacFly',
+      'reachedOnError',
+      'out',
+      'strikeout',
+    ]);
+    for (const c of RESULT_CHOICES) {
+      expect(valid.has(c.result)).toBe(true);
+    }
   });
 
-  it('0アウト1塁・セカンドゴロ併殺崩れ：一走アウト、打者一塁で生存', () => {
-    const detail: AtBatDetail = {
-      battedBall: { trajectory: 'grounder', zone: '2b' },
-      fielding: { sequence: [4, 6], fieldersChoice: true },
-      batterEndBase: 1,
-      runners: [{ playerId: 'r1', from: 1, to: 0 }],
-      brokenDoublePlay: true,
-    };
-    const t = applyPlateResult(bases({ first: 'r1' }), 'B', detail);
-    expect(t.next).toEqual(bases({ first: 'B' }));
-    expect(t.outsAdded).toBe(1);
-    expect(deriveResult('grounder', detail)).toBe('out');
-    expect(looksLikeBrokenDoublePlay(detail)).toBe(true);
+  it('本塁打は打点初期値 1', () => {
+    expect(choiceMeta('homerun').defaultRbi).toBe(1);
   });
 
-  it('走者一・三塁でタイムリー二塁打：2点、打者二塁', () => {
-    const t = applyPlateResult(bases({ first: 'r1', third: 'r3' }), 'B', {
-      batterEndBase: 2,
-      runners: [
-        { playerId: 'r3', from: 3, to: 4 },
-        { playerId: 'r1', from: 1, to: 4 },
-      ],
-    });
-    expect(t.runsScored).toBe(2);
-    expect(t.scorerIds).toEqual(['r3', 'r1']);
-    expect(t.next).toEqual(bases({ second: 'B' }));
-    expect(t.outsAdded).toBe(0);
-  });
-
-  it('イベントのない走者は塁に残る', () => {
-    const t = applyPlateResult(bases({ second: 'r2' }), 'B', {
-      batterEndBase: 1,
-      runners: [],
-    });
-    expect(t.next).toEqual(bases({ first: 'B', second: 'r2' }));
-  });
-
-  it('outsRecorded を明示すると優先される（三重殺など）', () => {
-    const t = applyPlateResult(bases({ first: 'r1', second: 'r2' }), 'B', {
-      batterEndBase: 0,
-      runners: [
-        { playerId: 'r2', from: 2, to: 0 },
-        { playerId: 'r1', from: 1, to: 0 },
-      ],
-      outsRecorded: 3,
-    });
-    expect(t.outsAdded).toBe(3);
+  it('三振・四球・死球・不明は方向ステップなし', () => {
+    for (const c of ['strikeout', 'walk', 'hitByPitch', 'unknown'] as const) {
+      expect(choiceMeta(c).needsDirection).toBe(false);
+    }
   });
 });
 
-describe('suggestRbi', () => {
-  it('生還走者数がそのまま候補', () => {
-    const detail: AtBatDetail = {
-      batterEndBase: 1,
-      runners: [{ playerId: 'r3', from: 3, to: 4 }],
-    };
-    const t = applyPlateResult(bases({ third: 'r3' }), 'B', detail);
-    expect(suggestRbi(detail, t)).toBe(1);
-  });
-
-  it('失策絡みの得点は打点候補から1減らす', () => {
-    const detail: AtBatDetail = {
-      batterEndBase: 1,
-      fielding: { sequence: [6], error: { pos: 6, kind: 'throw' } },
-      runners: [{ playerId: 'r3', from: 3, to: 4 }],
-    };
-    const t = applyPlateResult(bases({ third: 'r3' }), 'B', detail);
-    expect(suggestRbi(detail, t)).toBe(0);
-  });
-
-  it('本塁打は打者生還ぶん加算・最大4', () => {
-    const detail: AtBatDetail = {
-      batterEndBase: 4,
-      runners: [
-        { playerId: 'r1', from: 1, to: 4 },
-        { playerId: 'r2', from: 2, to: 4 },
-        { playerId: 'r3', from: 3, to: 4 },
-      ],
-    };
-    const t = applyPlateResult(
-      bases({ first: 'r1', second: 'r2', third: 'r3' }),
-      'B',
-      detail,
+describe('describeDetail', () => {
+  it('方向 + ゴロ', () => {
+    expect(describeDetail('out', { kind: 'grounder', zone: '2b' })).toBe(
+      '二塁・ゴロ',
     );
-    expect(t.runsScored).toBe(4);
-    expect(suggestRbi(detail, t)).toBe(4);
+  });
+  it('ヒットは方向のみ', () => {
+    expect(describeDetail('double', { zone: 'gap_lc' })).toBe('左中間');
+  });
+  it('併殺表示', () => {
+    expect(
+      describeDetail('out', { kind: 'grounder', gidp: true, zone: 'ss' }),
+    ).toBe('遊撃・併殺');
+  });
+  it('detail なし → 空', () => {
+    expect(describeDetail('walk', undefined)).toBe('');
   });
 });
