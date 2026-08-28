@@ -1,4 +1,5 @@
 import { NewTeamButton } from './NewTeamButton';
+import { SecretAdminLink } from './SecretAdminLink';
 
 // ルート = アプリ紹介を兼ねたランディングページ。
 // 既存チームはチームごとに配布された共有URL（/team/[teamId]）から入る想定。
@@ -233,8 +234,8 @@ export default function HomePage() {
       </section>
 
       <footer className="bg-night px-6 py-8 text-center text-xs text-white/50">
-        <p className="text-sm font-semibold tracking-tight text-white/70">
-          NineTrax
+        <p>
+          <SecretAdminLink />
         </p>
         <p className="mt-1">草野球チームの打席結果とスコアを記録・共有するアプリ</p>
       </footer>
