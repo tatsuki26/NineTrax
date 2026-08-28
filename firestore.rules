@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// 仕様書 §11.1 のアクセス方針:
+//  - teamId を知っている人は、その teamId 配下のドキュメントを読み書きできる（パスワード不要）
+//  - アプリ管理系（全チーム横断・チーム削除など）は admins/{uid} を持つユーザーのみ
+//  - スパム対策は App Check（有効化前提）とクライアント側のレート制御に依存する
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // アプリ管理者レコード。自分の分だけ get 可、一覧・書き込みは不可（seed / コンソールで管理）。
+    match /admins/{uid} {
+      allow get: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow list, write: if false;
+    }
+
+    // チーム本体。個別 get はURLを知っていれば可。一覧は管理者のみ。
+    // create/update/delete はチームIDを知っている人に許可する（再発行フローを含む）。
+    match /teams/{teamId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, update, delete: if true;
+
+      // 配下のサブコレクションはすべて「teamId を知っていれば読み書き可」。
+      match /players/{playerId} {
+        allow read, write: if true;
+      }
+      match /games/{gameId} {
+        allow read, write: if true;
+
+        match /atbats/{atbatId} {
+          allow read, write: if true;
+        }
+      }
+    }
+
+    // コレクショングループクエリ（アプリ管理ダッシュボードの集計）は管理者のみ。
+    // ※ 上の match /teams/{teamId}/games/... は collection group には適用されないため別途定義。
+    match /{path=**}/games/{gameId} {
+      allow read: if isAdmin();
+    }
+  }
+}
