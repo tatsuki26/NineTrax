@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type {
   AtBat,
+  AtBatDetail,
   AtBatResult,
   Direction,
   FieldPosition,
@@ -111,10 +112,10 @@ export function AtBatPanel({
   const needsDirection = meta?.needsDirection ?? false;
   const canSave = Boolean(playerId && choice);
 
-  function pickChoice(c: ResultChoice) {
+  function pickChoice(c: ResultChoice | null) {
     setChoice(c);
     setZone(null);
-    setRbi(choiceMeta(c).defaultRbi ?? 0);
+    setRbi(c ? (choiceMeta(c).defaultRbi ?? 0) : 0);
   }
 
   function resetInput() {
@@ -209,6 +210,14 @@ export function AtBatPanel({
   const logRows = [...atbats].sort(
     (a, b) => a.inning - b.inning || a.createdAt - b.createdAt,
   );
+  // 次の打者（打順の目安。強制はしない）
+  const lastOrdered = [...atbats].reverse().find((a) => a.order >= 1);
+  const nextOrder =
+    lineup.length > 0
+      ? lastOrdered
+        ? (lastOrdered.order % lineup.length) + 1
+        : 1
+      : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -317,12 +326,17 @@ export function AtBatPanel({
               <ul className="flex flex-col gap-1.5">
                 {lineup.map((slot, i) => {
                   const p = playerById.get(slot.playerId);
+                  const isNext = i + 1 === nextOrder;
                   return (
                     <li key={`${i}-${slot.playerId}`} className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => setPlayerId(slot.playerId)}
-                        className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-left active:bg-chalk"
+                        className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left active:bg-chalk ${
+                          isNext
+                            ? 'border-field/50 bg-field-tint'
+                            : 'border-line bg-white'
+                        }`}
                       >
                         <span className="tnum grid h-7 w-7 shrink-0 place-items-center rounded-full bg-field-tint text-sm font-bold text-field">
                           {i + 1}
@@ -333,6 +347,11 @@ export function AtBatPanel({
                         <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink">
                           {p?.name ?? '(不明)'}
                         </span>
+                        {isNext && (
+                          <span className="shrink-0 rounded-full bg-field px-1.5 py-0.5 text-[10px] font-bold text-white">
+                            次
+                          </span>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -402,88 +421,104 @@ export function AtBatPanel({
                 </button>
               </div>
 
-              {/* 2. 結果 */}
-              <p className="mb-2 text-xs font-bold text-ink-faint">結果</p>
-              <div className="grid grid-cols-3 gap-2">
-                {RESULT_CHOICES.map((c) => (
-                  <button
-                    key={c.choice}
-                    type="button"
-                    onClick={() => pickChoice(c.choice)}
-                    className={`h-12 rounded-xl border text-sm font-bold active:scale-[0.97] ${
-                      choice === c.choice
-                        ? 'border-field-dark bg-field text-white ring-2 ring-field/30'
-                        : GROUP_STYLE[c.group]
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 3. 方向 */}
-              {choice && needsDirection && (
-                <div className="mt-4">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <p className="text-xs font-bold text-ink-faint">方向</p>
-                    <button
-                      type="button"
-                      onClick={() => setZone('unknown')}
-                      className={`rounded-full border px-3 py-1 text-xs font-bold ${
-                        zone === 'unknown'
-                          ? 'border-field bg-field text-white'
-                          : 'border-line text-ink-muted'
-                      }`}
-                    >
-                      不明
-                    </button>
+              {!choice ? (
+                /* 2. 結果を選ぶ */
+                <>
+                  <p className="mb-2 text-xs font-bold text-ink-faint">結果</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {RESULT_CHOICES.map((c) => (
+                      <button
+                        key={c.choice}
+                        type="button"
+                        onClick={() => pickChoice(c.choice)}
+                        className={`h-12 rounded-xl border text-sm font-bold active:scale-[0.97] ${GROUP_STYLE[c.group]}`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="rounded-2xl border border-line bg-white p-2">
-                    <FanField
-                      value={zone === 'unknown' ? null : zone}
-                      onChange={(z) => setZone(z)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* 4. 打点 */}
-              {choice && (
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs font-bold text-ink-faint">打点</span>
-                  <div className="flex items-center gap-1 rounded-xl border border-line p-1">
-                    <button
-                      type="button"
-                      onClick={() => setRbi(Math.max(0, rbi - 1))}
-                      disabled={rbi <= 0}
-                      className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
-                    >
-                      −
-                    </button>
-                    <span className="tnum w-7 text-center text-xl font-bold text-ink">
-                      {rbi}
+                </>
+              ) : (
+                /* 3. 選択中の結果 + 方向 + 打点（スクロール不要でまとめて） */
+                <>
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm text-ink-muted">
+                      結果：
+                      <span className="ml-1 rounded-lg bg-field px-2 py-0.5 text-sm font-bold text-white">
+                        {meta?.label}
+                      </span>
                     </span>
                     <button
                       type="button"
-                      onClick={() => setRbi(Math.min(4, rbi + 1))}
-                      disabled={rbi >= 4}
-                      className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+                      onClick={() => pickChoice(null)}
+                      className="text-xs font-bold text-field"
                     >
-                      ＋
+                      ← 結果を選び直す
                     </button>
                   </div>
-                </div>
-              )}
 
-              <Button
-                fullWidth
-                size="lg"
-                className="mt-4"
-                disabled={!canSave || busy}
-                onClick={record}
-              >
-                {busy ? '記録中…' : '記録する'}
-              </Button>
+                  {needsDirection && (
+                    <div className="mb-3">
+                      <div className="mb-1 flex items-center justify-between">
+                        <p className="text-xs font-bold text-ink-faint">
+                          どこに打った？
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setZone('unknown')}
+                          className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                            zone === 'unknown'
+                              ? 'border-field bg-field text-white'
+                              : 'border-line text-ink-muted'
+                          }`}
+                        >
+                          不明
+                        </button>
+                      </div>
+                      <div className="mx-auto max-w-[300px] rounded-2xl border border-line bg-white p-2">
+                        <FanField
+                          value={zone === 'unknown' ? null : zone}
+                          onChange={(z) => setZone(z)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-xs font-bold text-ink-faint">打点</span>
+                    <div className="flex items-center gap-1 rounded-xl border border-line p-1">
+                      <button
+                        type="button"
+                        onClick={() => setRbi(Math.max(0, rbi - 1))}
+                        disabled={rbi <= 0}
+                        className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+                      >
+                        −
+                      </button>
+                      <span className="tnum w-7 text-center text-xl font-bold text-ink">
+                        {rbi}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRbi(Math.min(4, rbi + 1))}
+                        disabled={rbi >= 4}
+                        className="grid h-9 w-9 place-items-center rounded-lg text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+                      >
+                        ＋
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    fullWidth
+                    size="lg"
+                    disabled={!canSave || busy}
+                    onClick={record}
+                  >
+                    {busy ? '記録中…' : '記録する'}
+                  </Button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -768,6 +803,7 @@ function EditAtBatModal({
   const [result, setResult] = useState<AtBatResult>('single');
   const [rbi, setRbi] = useState(0);
   const [inning, setInning] = useState(1);
+  const [zone, setZone] = useState<Direction | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -775,6 +811,7 @@ function EditAtBatModal({
       setResult(atbat.result);
       setRbi(atbat.rbi);
       setInning(atbat.inning);
+      setZone(atbat.detail?.zone ?? null);
     }
   }, [atbat]);
 
@@ -782,7 +819,16 @@ function EditAtBatModal({
     if (!atbat) return;
     setBusy(true);
     try {
-      await updateAtBat(teamId, gameId, atbat.id, { result, rbi, inning });
+      const detail: AtBatDetail = {};
+      if (atbat.detail?.kind) detail.kind = atbat.detail.kind;
+      if (atbat.detail?.gidp) detail.gidp = true;
+      if (zone) detail.zone = zone;
+      await updateAtBat(teamId, gameId, atbat.id, {
+        result,
+        rbi,
+        inning,
+        detail,
+      });
       onClose();
     } finally {
       setBusy(false);
@@ -835,6 +881,37 @@ function EditAtBatModal({
             className="h-12 w-full rounded-xl border border-line bg-white px-3.5 text-base text-ink"
           />
         </label>
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-sm font-semibold text-ink-muted">方向</span>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setZone('unknown')}
+                className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                  zone === 'unknown'
+                    ? 'border-field bg-field text-white'
+                    : 'border-line text-ink-muted'
+                }`}
+              >
+                不明
+              </button>
+              <button
+                type="button"
+                onClick={() => setZone(null)}
+                className="rounded-full border border-line px-3 py-1 text-xs font-bold text-ink-muted"
+              >
+                なし
+              </button>
+            </div>
+          </div>
+          <div className="mx-auto max-w-[280px] rounded-2xl border border-line bg-white p-2">
+            <FanField
+              value={zone === 'unknown' ? null : zone}
+              onChange={(z) => setZone(z)}
+            />
+          </div>
+        </div>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-ink-muted">打点</span>
           <div className="flex items-center gap-1 rounded-xl border border-line p-1">

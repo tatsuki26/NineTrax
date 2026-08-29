@@ -51,6 +51,16 @@ export function Scoreboard({
   const renderRow = (row: Row, label: string, scores: (number | null)[]) => {
     const total = sum(scores);
     const other = row === 'home' ? sum(game.awayScores) : sum(game.homeScores);
+    // 得点が入った最後の回。それ以降の 0/未入力は「まだ終わっていない回」として空欄に。
+    const lastScoredIdx = scores.reduce<number>(
+      (m, v, idx) => ((v ?? 0) > 0 ? idx : m),
+      -1,
+    );
+    const cellText = (v: number | null, i: number): string => {
+      if (v == null) return '';
+      if (v > 0) return String(v);
+      return i <= lastScoredIdx ? '0' : '';
+    };
     return (
       <tr key={row}>
         <th className="sticky left-0 z-10 max-w-[6.5rem] truncate bg-night px-3 py-2.5 text-left text-xs font-bold text-white/80">
@@ -84,7 +94,7 @@ export function Scoreboard({
                   onClick={() => startEdit(row, i, val)}
                   className="tnum h-11 w-11 text-lg font-bold tabular-nums text-amber-300 transition-colors hover:bg-white/10 active:bg-white/15"
                 >
-                  {val == null ? '' : val}
+                  {cellText(val, i)}
                 </button>
               )}
             </td>
