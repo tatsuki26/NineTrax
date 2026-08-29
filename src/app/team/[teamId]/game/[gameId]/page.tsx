@@ -36,8 +36,11 @@ export default function GamePage() {
     );
   }
 
-  const home = game.homeScores.reduce((a, b) => a + b, 0);
-  const away = game.awayScores.reduce((a, b) => a + b, 0);
+  const sum = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
+  const home = sum(game.homeScores);
+  const away = sum(game.awayScores);
+  const sideLabel =
+    game.ourSide === 'first' ? '先攻' : game.ourSide === 'second' ? '後攻' : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -53,15 +56,22 @@ export default function GamePage() {
               {game.ground ? ` ・ ${game.ground}` : ''}
             </p>
           </div>
-          {game.status === 'finished' ? (
-            <Badge tone="neutral" className="bg-white/15 text-white/80">
-              終了
-            </Badge>
-          ) : (
-            <Badge tone="clay" dot className="bg-clay/20 text-clay-light">
-              進行中
-            </Badge>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {sideLabel && (
+              <Badge tone="neutral" className="bg-white/15 text-white/80">
+                {sideLabel}
+              </Badge>
+            )}
+            {game.status === 'finished' ? (
+              <Badge tone="neutral" className="bg-white/15 text-white/80">
+                終了
+              </Badge>
+            ) : (
+              <Badge tone="clay" dot className="bg-clay/20 text-clay-light">
+                進行中
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="mt-3 flex items-end gap-4">
           <ScoreCol label="自チーム" value={home} lead={home > away} />
@@ -70,6 +80,32 @@ export default function GamePage() {
         </div>
       </div>
 
+      {game.ourSide == null && game.status === 'in_progress' ? (
+        <div className="rounded-2xl border border-line bg-white p-6 text-center shadow-card">
+          <p className="text-sm font-bold text-ink">
+            自チームは先攻ですか？後攻ですか？
+          </p>
+          <p className="mt-1 text-xs text-ink-faint">
+            打席を入力する前に選んでください（スコアボードの並び順に使います）。
+          </p>
+          <div className="mt-4 flex justify-center gap-3">
+            <Button
+              size="lg"
+              onClick={() => updateGame(teamId, gameId, { ourSide: 'first' })}
+            >
+              先攻（表）
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={() => updateGame(teamId, gameId, { ourSide: 'second' })}
+            >
+              後攻（裏）
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* スマホ: セグメントコントロールで切り替え */}
       <div className="flex gap-1 rounded-xl border border-line bg-white p-1 lg:hidden">
         {(
@@ -109,6 +145,8 @@ export default function GamePage() {
           </div>
         </div>
       </div>
+        </>
+      )}
 
       <div className="flex items-center justify-between">
         <Link

@@ -65,15 +65,84 @@ export interface Player {
   archived: boolean;
 }
 
+/** 守備位置。BENCH は控え（守備につかない）。 */
+export type FieldPosition =
+  | 'P'
+  | 'C'
+  | '1B'
+  | '2B'
+  | '3B'
+  | 'SS'
+  | 'LF'
+  | 'CF'
+  | 'RF'
+  | 'DH'
+  | 'BENCH';
+
+export const FIELD_POSITIONS: FieldPosition[] = [
+  'P',
+  'C',
+  '1B',
+  '2B',
+  '3B',
+  'SS',
+  'LF',
+  'CF',
+  'RF',
+  'DH',
+  'BENCH',
+];
+
+export const FIELD_POSITION_LABELS: Record<FieldPosition, string> = {
+  P: '投',
+  C: '捕',
+  '1B': '一',
+  '2B': '二',
+  '3B': '三',
+  SS: '遊',
+  LF: '左',
+  CF: '中',
+  RF: '右',
+  DH: 'DH',
+  BENCH: '控',
+};
+
+/** 打順1枠 = 選手 + 守備位置。配列インデックス+1 が打順。 */
+export interface LineupSlot {
+  playerId: string;
+  position: FieldPosition;
+}
+
+/** 選手交代の記録 */
+export interface Substitution {
+  inning: number;
+  /** 交代した打順（1〜） */
+  order: number;
+  outPlayerId: string;
+  inPlayerId: string;
+  /** 入った選手の守備位置 */
+  position: FieldPosition;
+  createdAt: number;
+}
+
+/** 自チームが先攻(first)か後攻(second)か。 */
+export type OurSide = 'first' | 'second';
+
 export interface Game {
   id: string;
   date: string; // 'YYYY-MM-DD'
   opponent: string;
   ground: string;
   season: number; // 西暦
-  lineup: string[]; // playerId、打順順、任意長
-  homeScores: number[]; // 長さ9、未入力は 0
-  awayScores: number[]; // 長さ9、未入力は 0
+  /** 現在の打順（先発 + 交代反映後）。配列インデックス+1 が打順。 */
+  lineup: LineupSlot[];
+  /** 自チームの先攻/後攻。null なら未設定（最初の打席入力前に選択させる）。 */
+  ourSide: OurSide | null;
+  /** 選手交代の履歴 */
+  substitutions: Substitution[];
+  /** 各回の得点。長さ9。null = 未入力（スコアボードで「-」表示）。 */
+  homeScores: (number | null)[];
+  awayScores: (number | null)[];
   status: GameStatus;
   createdAt: number;
 }
@@ -157,7 +226,7 @@ export type GameInput = {
   opponent: string;
   ground: string;
   season: number;
-  lineup: string[];
+  lineup: LineupSlot[];
 };
 export type AtBatInput = {
   playerId: string;
@@ -168,4 +237,14 @@ export type AtBatInput = {
   detail?: AtBatDetail;
 };
 
-export const EMPTY_SCORES: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+export const EMPTY_SCORES: (number | null)[] = [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+];
