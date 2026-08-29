@@ -2,6 +2,7 @@
 // 成績集計（lib/stats.ts）は AtBat.result のみを見るので、ここでの導出が集計の入り口。
 
 import type {
+  AtBat,
   AtBatDetail,
   AtBatResult,
   Direction,
@@ -133,6 +134,27 @@ export function buildAtBat(
     detail.zone !== undefined ||
     detail.gidp !== undefined;
   return { result: meta.result, detail: hasDetail ? detail : undefined };
+}
+
+/** この打席で自チームに記録されるアウト数。併殺打は 2、通常のアウト系は 1。 */
+export function outsFor(ab: Pick<AtBat, 'result' | 'detail'>): number {
+  if (ab.detail?.gidp) return 2;
+  return ab.result === 'out' ||
+    ab.result === 'strikeout' ||
+    ab.result === 'sacBunt' ||
+    ab.result === 'sacFly'
+    ? 1
+    : 0;
+}
+
+/** 指定イニングの自チームのアウト合計。 */
+export function outsInInning(
+  atbats: Pick<AtBat, 'inning' | 'result' | 'detail'>[],
+  inning: number,
+): number {
+  return atbats
+    .filter((a) => a.inning === inning)
+    .reduce((n, a) => n + outsFor(a), 0);
 }
 
 /** ログ表示用の1行サマリ（例: 「二塁・ゴロ」「左中間」）。 */

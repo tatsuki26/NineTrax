@@ -12,8 +12,15 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import type { Game, GameInput } from '@/lib/types';
-import { EMPTY_SCORES } from '@/lib/types';
+import type {
+  FieldPosition,
+  Game,
+  GameInput,
+  LineupSlot,
+  OurSide,
+  Substitution,
+} from '@/lib/types';
+import { EMPTY_SCORES, FIELD_POSITIONS } from '@/lib/types';
 import { getDb } from '@/lib/firebase';
 import { gamesCol, gameDoc, atbatsCol } from './refs';
 
@@ -23,21 +30,62 @@ function toMillis(v: unknown): number {
   return Date.now();
 }
 
-function normalizeScores(v: unknown): number[] {
-  if (!Array.isArray(v)) return [...EMPTY_SCORES];
+function normalizeScores(v: unknown): (number | null)[] {
   const out = [...EMPTY_SCORES];
-  for (let i = 0; i < 9; i++) out[i] = typeof v[i] === 'number' ? v[i] : 0;
+  if (Array.isArray(v)) {
+    for (let i = 0; i < 9; i++) out[i] = typeof v[i] === 'number' ? v[i] : null;
+  }
   return out;
 }
 
+// 旧形式（string[]）も新形式（LineupSlot[]）も受け付ける。
+function normalizeLineup(v: unknown): LineupSlot[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((entry, i): LineupSlot => {
+    if (typeof entry === 'string') {
+      return { playerId: entry, position: i < 9 ? FIELD_POSITIONS[i] : 'BENCH' };
+    }
+    const e = (entry ?? {}) as Partial<LineupSlot>;
+    return {
+      playerId: typeof e.playerId === 'string' ? e.playerId : '',
+      position: FIELD_POSITIONS.includes(e.position as FieldPosition)
+        ? (e.position as FieldPosition)
+        : 'BENCH',
+    };
+  });
+}
+
+function normalizeSubs(v: unknown): Substitution[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((s): Substitution | null => {
+      const e = (s ?? {}) as Partial<Substitution>;
+      if (!e.outPlayerId || !e.inPlayerId) return null;
+      return {
+        inning: typeof e.inning === 'number' ? e.inning : 1,
+        order: typeof e.order === 'number' ? e.order : 0,
+        outPlayerId: e.outPlayerId,
+        inPlayerId: e.inPlayerId,
+        position: FIELD_POSITIONS.includes(e.position as FieldPosition)
+          ? (e.position as FieldPosition)
+          : 'BENCH',
+        createdAt: typeof e.createdAt === 'number' ? e.createdAt : Date.now(),
+      };
+    })
+    .filter((s): s is Substitution => s !== null);
+}
+
 export function toGame(id: string, data: Record<string, unknown>): Game {
+  const side = data.ourSide;
   return {
     id,
     date: (data.date as string) ?? '',
     opponent: (data.opponent as string) ?? '',
     ground: (data.ground as string) ?? '',
     season: (data.season as number) ?? new Date().getFullYear(),
-    lineup: Array.isArray(data.lineup) ? (data.lineup as string[]) : [],
+    lineup: normalizeLineup(data.lineup),
+    ourSide: side === 'first' || side === 'second' ? (side as OurSide) : null,
+    substitutions: normalizeSubs(data.substitutions),
     homeScores: normalizeScores(data.homeScores),
     awayScores: normalizeScores(data.awayScores),
     status: (data.status as Game['status']) ?? 'in_progress',
@@ -74,6 +122,8 @@ export async function createGame(
     ground: input.ground,
     season: input.season,
     lineup: input.lineup,
+    ourSide: null,
+    substitutions: [],
     homeScores: [...EMPTY_SCORES],
     awayScores: [...EMPTY_SCORES],
     status: 'in_progress' as const,

@@ -6,9 +6,11 @@ import { updateGame } from '@/lib/db';
 
 const INNINGS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-function sum(scores: number[]): number {
-  return scores.reduce((a, b) => a + (b || 0), 0);
+function sum(scores: (number | null)[]): number {
+  return scores.reduce<number>((a, b) => a + (b ?? 0), 0);
 }
+
+type Row = 'home' | 'away';
 
 export function Scoreboard({
   teamId,
@@ -22,11 +24,12 @@ export function Scoreboard({
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
-  async function commit(row: 'home' | 'away', inning: number) {
+  async function commit(row: Row, inning: number) {
     const key = `${row}-${inning}`;
     if (editing !== key) return;
-    const value = Math.max(0, Math.min(99, Number(draft) || 0));
     const current = row === 'home' ? game.homeScores : game.awayScores;
+    const value =
+      draft.trim() === '' ? null : Math.max(0, Math.min(99, Number(draft) || 0));
     setEditing(null);
     if (value === current[inning]) return;
     const next = [...current];
@@ -38,22 +41,22 @@ export function Scoreboard({
     );
   }
 
-  function startEdit(row: 'home' | 'away', inning: number, value: number) {
+  function startEdit(row: Row, inning: number, value: number | null) {
     setEditing(`${row}-${inning}`);
-    setDraft(value ? String(value) : '');
+    setDraft(value == null ? '' : String(value));
   }
 
-  const renderRow = (row: 'home' | 'away', label: string, scores: number[]) => {
+  const renderRow = (row: Row, label: string, scores: (number | null)[]) => {
     const total = sum(scores);
-    const other =
-      row === 'home' ? sum(game.awayScores) : sum(game.homeScores);
+    const other = row === 'home' ? sum(game.awayScores) : sum(game.homeScores);
     return (
-      <tr>
+      <tr key={row}>
         <th className="sticky left-0 z-10 whitespace-nowrap bg-night px-3 py-2.5 text-left text-xs font-bold text-white/70">
           {label}
         </th>
         {INNINGS.map((i) => {
           const key = `${row}-${i}`;
+          const val = scores[i];
           return (
             <td
               key={i}
@@ -76,10 +79,12 @@ export function Scoreboard({
               ) : (
                 <button
                   type="button"
-                  onClick={() => startEdit(row, i, scores[i] || 0)}
-                  className="tnum h-11 w-11 text-lg font-bold text-amber-300 tabular-nums transition-colors hover:bg-white/10 active:bg-white/15"
+                  onClick={() => startEdit(row, i, val)}
+                  className={`tnum h-11 w-11 text-lg font-bold tabular-nums transition-colors hover:bg-white/10 active:bg-white/15 ${
+                    val == null ? 'text-white/25' : 'text-amber-300'
+                  }`}
                 >
-                  {scores[i] || 0}
+                  {val == null ? '−' : val}
                 </button>
               )}
             </td>
@@ -95,6 +100,16 @@ export function Scoreboard({
       </tr>
     );
   };
+
+  // 先攻を上、後攻を下に表示する。
+  const homeRow = { row: 'home' as Row, label: '自チーム', scores: game.homeScores };
+  const awayRow = { row: 'away' as Row, label: '相手', scores: game.awayScores };
+  const rows =
+    game.ourSide === 'first'
+      ? [homeRow, awayRow]
+      : game.ourSide === 'second'
+        ? [awayRow, homeRow]
+        : [awayRow, homeRow];
 
   return (
     <div className="flex flex-col gap-3">
@@ -120,14 +135,13 @@ export function Scoreboard({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
-              {renderRow('away', '相手', game.awayScores)}
-              {renderRow('home', '自チーム', game.homeScores)}
+              {rows.map((r) => renderRow(r.row, r.label, r.scores))}
             </tbody>
           </table>
         </div>
       </div>
       <p className="px-1 text-xs text-ink-faint">
-        数字をタップして各イニングの得点を入力します（打席記録とは連動しません）。
+        終わった回の得点をタップして入力します。空欄にすると「−」に戻ります（打席記録とは連動しません）。
       </p>
     </div>
   );

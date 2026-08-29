@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildAtBat, choiceMeta, describeDetail, RESULT_CHOICES } from './plate';
+import {
+  buildAtBat,
+  choiceMeta,
+  describeDetail,
+  outsFor,
+  outsInInning,
+  RESULT_CHOICES,
+} from './plate';
+import type { AtBat } from './types';
 
 describe('buildAtBat', () => {
   it('単打 + 左中間', () => {
@@ -90,6 +98,42 @@ describe('RESULT_CHOICES / choiceMeta', () => {
     for (const c of ['strikeout', 'walk', 'hitByPitch', 'unknown'] as const) {
       expect(choiceMeta(c).needsDirection).toBe(false);
     }
+  });
+});
+
+describe('outsFor / outsInInning', () => {
+  const ab = (
+    result: AtBat['result'],
+    inning = 1,
+    gidp = false,
+  ): Pick<AtBat, 'inning' | 'result' | 'detail'> => ({
+    inning,
+    result,
+    detail: gidp ? { gidp: true } : undefined,
+  });
+
+  it('アウト系は1、併殺打は2、出塁系は0', () => {
+    expect(outsFor(ab('out'))).toBe(1);
+    expect(outsFor(ab('strikeout'))).toBe(1);
+    expect(outsFor(ab('sacBunt'))).toBe(1);
+    expect(outsFor(ab('sacFly'))).toBe(1);
+    expect(outsFor(ab('out', 1, true))).toBe(2);
+    expect(outsFor(ab('single'))).toBe(0);
+    expect(outsFor(ab('walk'))).toBe(0);
+    expect(outsFor(ab('reachedOnError'))).toBe(0);
+  });
+
+  it('イニング別に集計する', () => {
+    const rows = [
+      ab('out', 1),
+      ab('single', 1),
+      ab('strikeout', 1),
+      ab('out', 2),
+      ab('out', 1, true), // 併殺で +2 → 1回は 4
+    ];
+    expect(outsInInning(rows, 1)).toBe(4);
+    expect(outsInInning(rows, 2)).toBe(1);
+    expect(outsInInning(rows, 3)).toBe(0);
   });
 });
 

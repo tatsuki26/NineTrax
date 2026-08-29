@@ -2,12 +2,26 @@
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import type { FieldPosition, LineupSlot } from '@/lib/types';
+import { FIELD_POSITIONS, FIELD_POSITION_LABELS } from '@/lib/types';
 import { usePlayers, createGame } from '@/lib/db';
 import { Button } from '@/components/Button';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Field, TextInput } from '@/components/Field';
 import { Spinner } from '@/components/Spinner';
 import { PageHeader } from '@/components/PageHeader';
+
+const DEFAULT_POS: FieldPosition[] = [
+  'P',
+  'C',
+  '1B',
+  '2B',
+  '3B',
+  'SS',
+  'LF',
+  'CF',
+  'RF',
+];
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -22,7 +36,7 @@ export default function NewGamePage() {
   const [opponent, setOpponent] = useState('');
   const [ground, setGround] = useState('');
   const [season, setSeason] = useState(String(new Date().getFullYear()));
-  const [lineup, setLineup] = useState<string[]>([]);
+  const [lineup, setLineup] = useState<LineupSlot[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,13 +44,22 @@ export default function NewGamePage() {
     () => new Map(players.map((p) => [p.id, p])),
     [players],
   );
-  const available = players.filter((p) => !lineup.includes(p.id));
+  const inLineup = new Set(lineup.map((s) => s.playerId));
+  const available = players.filter((p) => !inLineup.has(p.id));
 
   function addToLineup(id: string) {
-    setLineup((cur) => [...cur, id]);
+    setLineup((cur) => [
+      ...cur,
+      { playerId: id, position: DEFAULT_POS[cur.length] ?? 'BENCH' },
+    ]);
   }
   function removeFromLineup(id: string) {
-    setLineup((cur) => cur.filter((x) => x !== id));
+    setLineup((cur) => cur.filter((s) => s.playerId !== id));
+  }
+  function setPosition(index: number, position: FieldPosition) {
+    setLineup((cur) =>
+      cur.map((s, i) => (i === index ? { ...s, position } : s)),
+    );
   }
   function move(index: number, dir: -1 | 1) {
     setLineup((cur) => {
@@ -128,17 +151,31 @@ export default function NewGamePage() {
             ) : (
               <>
                 <ol className="mb-4 flex flex-col gap-1">
-                  {lineup.map((id, i) => {
-                    const p = playerById.get(id);
+                  {lineup.map((slot, i) => {
+                    const p = playerById.get(slot.playerId);
                     return (
                       <li
-                        key={id}
+                        key={slot.playerId}
                         className="flex items-center gap-2 rounded-xl bg-chalk/60 px-2 py-1.5"
                       >
                         <span className="tnum grid h-7 w-7 shrink-0 place-items-center rounded-full bg-field text-sm font-bold text-white">
                           {i + 1}
                         </span>
-                        <span className="flex-1 truncate text-ink">
+                        <select
+                          value={slot.position}
+                          onChange={(e) =>
+                            setPosition(i, e.target.value as FieldPosition)
+                          }
+                          aria-label="守備位置"
+                          className="h-8 shrink-0 rounded-lg border border-line bg-white px-1 text-sm font-bold text-ink"
+                        >
+                          {FIELD_POSITIONS.map((pos) => (
+                            <option key={pos} value={pos}>
+                              {FIELD_POSITION_LABELS[pos]}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="min-w-0 flex-1 truncate text-ink">
                           {p?.number != null && (
                             <span className="tnum mr-1 font-bold text-field">
                               {p.number}
@@ -167,7 +204,7 @@ export default function NewGamePage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => removeFromLineup(id)}
+                          onClick={() => removeFromLineup(slot.playerId)}
                         >
                           外す
                         </Button>

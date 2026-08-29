@@ -50,9 +50,9 @@ export default function TeamHomePage() {
             </p>
             <div className="mt-2 flex items-baseline gap-3 text-white/80">
               <span className="tnum text-4xl font-bold text-white">
-                {inProgress.homeScores.reduce((a, b) => a + b, 0)}
+                {inProgress.homeScores.reduce<number>((a, b) => a + (b ?? 0), 0)}
                 <span className="mx-2 text-xl text-white/40">-</span>
-                {inProgress.awayScores.reduce((a, b) => a + b, 0)}
+                {inProgress.awayScores.reduce<number>((a, b) => a + (b ?? 0), 0)}
               </span>
               <span className="tnum text-xs">{inProgress.date}</span>
             </div>
@@ -91,8 +91,8 @@ export default function TeamHomePage() {
             ) : (
               <ul className="divide-y divide-line">
                 {games.map((g) => {
-                  const h = g.homeScores.reduce((a, b) => a + b, 0);
-                  const a = g.awayScores.reduce((x, y) => x + y, 0);
+                  const h = g.homeScores.reduce<number>((a, b) => a + (b ?? 0), 0);
+                  const a = g.awayScores.reduce<number>((x, y) => x + (y ?? 0), 0);
                   return (
                     <li key={g.id}>
                       <Link
