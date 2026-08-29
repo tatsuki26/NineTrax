@@ -89,6 +89,11 @@ export function AtBatPanel({
   const [inningOverride, setInningOverride] = useState<number | null>(null);
   const inning = inningOverride ?? lastInning;
   const outs = outsInInning(atbats, inning);
+
+  // 次の打者（打順の目安）。打席数 mod 打順人数。代打（ベンチ選手）の打席も
+  // カウントされるので、交代しても打順は正しく1つ進む。
+  const nextOrder =
+    lineup.length > 0 ? (atbats.length % lineup.length) + 1 : 0;
   // 自チームで3アウトが記録された最後の回（スコアボードの「終わった回」判定に使う）
   const ourInningsDone = (() => {
     let d = 0;
@@ -137,9 +142,10 @@ export function AtBatPanel({
     try {
       const { result, detail } = buildAtBat(choice, zone);
       const idx = lineupIndex(playerId);
+      // スタメンは打順スロット、ベンチ（代打）は「次の打者」の枠として記録する。
       await addAtBat(teamId, gameId, {
         playerId,
-        order: idx >= 0 ? idx + 1 : 0,
+        order: idx >= 0 ? idx + 1 : nextOrder,
         inning,
         result,
         rbi,
@@ -231,14 +237,6 @@ export function AtBatPanel({
   const logRows = [...atbats].sort(
     (a, b) => a.inning - b.inning || a.createdAt - b.createdAt,
   );
-  // 次の打者（打順の目安。強制はしない）
-  const lastOrdered = [...atbats].reverse().find((a) => a.order >= 1);
-  const nextOrder =
-    lineup.length > 0
-      ? lastOrdered
-        ? (lastOrdered.order % lineup.length) + 1
-        : 1
-      : 0;
 
   return (
     <div className="flex flex-col gap-4">
