@@ -6,8 +6,10 @@ import {
   outsFor,
   outsInInning,
   RESULT_CHOICES,
+  ZONE_XY,
+  zoneSide,
 } from './plate';
-import type { AtBat } from './types';
+import type { AtBat, HitZone } from './types';
 
 describe('buildAtBat', () => {
   it('単打 + 左中間', () => {
@@ -134,6 +136,31 @@ describe('outsFor / outsInInning', () => {
     expect(outsInInning(rows, 1)).toBe(4);
     expect(outsInInning(rows, 2)).toBe(1);
     expect(outsInInning(rows, 3)).toBe(0);
+  });
+});
+
+describe('打球方向（ZONE_XY / zoneSide）', () => {
+  const ALL: HitZone[] = [
+    'p', 'c', '1b', '2b', '3b', 'ss', 'lf', 'cf', 'rf',
+    'gap_13', 'gap_56', 'gap_lc', 'gap_rc', 'line_l', 'line_r',
+  ];
+
+  it('全ゾーンに座標がある', () => {
+    for (const z of ALL) {
+      expect(ZONE_XY[z]).toBeDefined();
+      expect(typeof ZONE_XY[z].x).toBe('number');
+    }
+  });
+
+  it('左右中央の振り分け', () => {
+    expect(zoneSide('lf')).toBe('left');
+    expect(zoneSide('3b')).toBe('left');
+    expect(zoneSide('gap_56')).toBe('left');
+    expect(zoneSide('cf')).toBe('center');
+    expect(zoneSide('2b')).toBe('center');
+    expect(zoneSide('rf')).toBe('right');
+    expect(zoneSide('1b')).toBe('right');
+    expect(zoneSide('gap_13')).toBe('right');
   });
 });
 

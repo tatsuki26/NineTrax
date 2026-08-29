@@ -89,6 +89,12 @@ export function AtBatPanel({
   const [inningOverride, setInningOverride] = useState<number | null>(null);
   const inning = inningOverride ?? lastInning;
   const outs = outsInInning(atbats, inning);
+  // 自チームで3アウトが記録された最後の回（スコアボードの「終わった回」判定に使う）
+  const ourInningsDone = (() => {
+    let d = 0;
+    for (let i = 1; i <= 9; i++) if (outsInInning(atbats, i) >= 3) d = i;
+    return d;
+  })();
 
   // 統一入力の状態：選手 → 結果 → 方向 → 打点
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -142,6 +148,9 @@ export function AtBatPanel({
       // 3アウト目なら即・次の回へ（スナップショット反映を待たない）
       if (outs + outsFor({ result, detail }) >= 3) {
         setInningOverride(inning + 1);
+        if (game.homeInningsDone < inning) {
+          await updateGame(teamId, gameId, { homeInningsDone: inning });
+        }
       }
       resetInput();
     } finally {
@@ -181,14 +190,22 @@ export function AtBatPanel({
   const oppTargetInning = oppInning ?? inning;
   const oppRaw = game.awayScores[oppTargetInning - 1];
   const oppRuns = oppRaw ?? 0;
-  const oppConfirmed = oppRaw != null;
+  const oppConfirmed = oppTargetInning <= game.awayInningsDone;
   async function setOppRuns(v: number) {
     const next = [...game.awayScores];
     next[oppTargetInning - 1] = Math.max(0, Math.min(99, v));
-    await updateGame(teamId, gameId, { awayScores: next });
+    await updateGame(teamId, gameId, {
+      awayScores: next,
+      awayInningsDone: Math.max(game.awayInningsDone, oppTargetInning),
+    });
   }
   async function confirmOppInningAndNext() {
-    if (oppRaw == null) await setOppRuns(0); // 0点でも明示的に記録
+    const next = [...game.awayScores];
+    if (next[oppTargetInning - 1] == null) next[oppTargetInning - 1] = 0;
+    await updateGame(teamId, gameId, {
+      awayScores: next,
+      awayInningsDone: Math.max(game.awayInningsDone, oppTargetInning),
+    });
     setOppInning(oppTargetInning + 1);
   }
 
@@ -226,7 +243,12 @@ export function AtBatPanel({
   return (
     <div className="flex flex-col gap-4">
       {/* スコアボード（最上部） */}
-      <Scoreboard teamId={teamId} gameId={gameId} game={game} />
+      <Scoreboard
+        teamId={teamId}
+        gameId={gameId}
+        game={game}
+        homeInningsDone={ourInningsDone}
+      />
 
       {/* 相手の得点カウンター */}
       <div className="rounded-2xl border border-line bg-white px-4 py-3 shadow-card">

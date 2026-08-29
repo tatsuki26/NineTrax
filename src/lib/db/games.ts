@@ -88,9 +88,15 @@ export function toGame(id: string, data: Record<string, unknown>): Game {
     substitutions: normalizeSubs(data.substitutions),
     homeScores: normalizeScores(data.homeScores),
     awayScores: normalizeScores(data.awayScores),
+    homeInningsDone: clampDone(data.homeInningsDone),
+    awayInningsDone: clampDone(data.awayInningsDone),
     status: (data.status as Game['status']) ?? 'in_progress',
     createdAt: toMillis(data.createdAt),
   };
+}
+
+function clampDone(v: unknown): number {
+  return typeof v === 'number' ? Math.max(0, Math.min(9, Math.floor(v))) : 0;
 }
 
 export async function listGames(
@@ -126,6 +132,8 @@ export async function createGame(
     substitutions: [],
     homeScores: [...EMPTY_SCORES],
     awayScores: [...EMPTY_SCORES],
+    homeInningsDone: 0,
+    awayInningsDone: 0,
     status: 'in_progress' as const,
     createdAt: serverTimestamp(),
   };

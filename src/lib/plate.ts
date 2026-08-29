@@ -51,6 +51,47 @@ export function directionLabel(d: Direction): string {
   return d === 'unknown' ? '不明' : HIT_ZONE_LABELS[d];
 }
 
+// 打球方向図（viewBox 0 0 320 290）での各ゾーンの座標。FanField / SprayChart 共通。
+export const ZONE_XY: Record<HitZone, { x: number; y: number }> = {
+  lf: { x: 70, y: 92 },
+  gap_lc: { x: 114, y: 62 },
+  cf: { x: 160, y: 50 },
+  gap_rc: { x: 206, y: 62 },
+  rf: { x: 250, y: 92 },
+  line_l: { x: 60, y: 166 },
+  line_r: { x: 260, y: 166 },
+  '3b': { x: 92, y: 192 },
+  gap_56: { x: 118, y: 168 },
+  ss: { x: 138, y: 150 },
+  '2b': { x: 182, y: 150 },
+  gap_13: { x: 202, y: 168 },
+  '1b': { x: 228, y: 192 },
+  p: { x: 160, y: 202 },
+  c: { x: 160, y: 244 },
+};
+
+export type FieldSide = 'left' | 'center' | 'right';
+const ZONE_SIDE: Record<HitZone, FieldSide> = {
+  lf: 'left',
+  gap_lc: 'left',
+  line_l: 'left',
+  '3b': 'left',
+  gap_56: 'left',
+  ss: 'left',
+  cf: 'center',
+  p: 'center',
+  c: 'center',
+  '2b': 'center',
+  gap_rc: 'right',
+  rf: 'right',
+  line_r: 'right',
+  '1b': 'right',
+  gap_13: 'right',
+};
+export function zoneSide(z: HitZone): FieldSide {
+  return ZONE_SIDE[z];
+}
+
 export const TRAJECTORY_LABELS: Record<Trajectory, string> = {
   grounder: 'ゴロ',
   liner: 'ライナー',

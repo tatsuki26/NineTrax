@@ -140,9 +140,15 @@ export interface Game {
   ourSide: OurSide | null;
   /** 選手交代の履歴 */
   substitutions: Substitution[];
-  /** 各回の得点。長さ9。null = 未入力（スコアボードで「-」表示）。 */
+  /** 各回の得点。長さ9。null = 未入力。 */
   homeScores: (number | null)[];
   awayScores: (number | null)[];
+  /**
+   * 「何回まで終わったか」。スコアボードはこの回数までのセルだけ数字を表示する。
+   * これより後の回は保存値が 0 でも空欄（未終了扱い）。
+   */
+  homeInningsDone: number;
+  awayInningsDone: number;
   status: GameStatus;
   createdAt: number;
 }

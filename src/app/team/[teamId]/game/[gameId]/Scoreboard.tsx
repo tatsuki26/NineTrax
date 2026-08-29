@@ -5,10 +5,14 @@ import type { Game } from '@/lib/types';
 import { updateGame } from '@/lib/db';
 import { useTeamContext } from '@/lib/team-context';
 
+type GamePatch = Partial<Omit<Game, 'id' | 'createdAt'>>;
+
 const INNINGS = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-function sum(scores: (number | null)[]): number {
-  return scores.reduce<number>((a, b) => a + (b ?? 0), 0);
+function sum(scores: (number | null)[], done: number): number {
+  return scores
+    .slice(0, Math.max(0, done))
+    .reduce<number>((a, b) => a + (b ?? 0), 0);
 }
 
 type Row = 'home' | 'away';
@@ -17,14 +21,24 @@ export function Scoreboard({
   teamId,
   gameId,
   game,
+  homeInningsDone,
+  awayInningsDone,
 }: {
   teamId: string;
   gameId: string;
   game: Game;
+  /** at-bats から算出した最新値で上書きしたいとき（省略時は game の値） */
+  homeInningsDone?: number;
+  awayInningsDone?: number;
 }) {
   const team = useTeamContext();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+
+  const doneOf = (row: Row) =>
+    row === 'home'
+      ? Math.max(game.homeInningsDone, homeInningsDone ?? 0)
+      : Math.max(game.awayInningsDone, awayInningsDone ?? 0);
 
   async function commit(row: Row, inning: number) {
     const key = `${row}-${inning}`;
@@ -36,11 +50,14 @@ export function Scoreboard({
     if (value === current[inning]) return;
     const next = [...current];
     next[inning] = value;
-    await updateGame(
-      teamId,
-      gameId,
-      row === 'home' ? { homeScores: next } : { awayScores: next },
-    );
+    // 数字を入れた回は「終わった回」として最低でも i+1 まで done にする。
+    const curDone = row === 'home' ? game.homeInningsDone : game.awayInningsDone;
+    const nextDone = value == null ? curDone : Math.max(curDone, inning + 1);
+    const patch: GamePatch =
+      row === 'home'
+        ? { homeScores: next, homeInningsDone: nextDone }
+        : { awayScores: next, awayInningsDone: nextDone };
+    await updateGame(teamId, gameId, patch);
   }
 
   function startEdit(row: Row, inning: number, value: number | null) {
@@ -49,10 +66,13 @@ export function Scoreboard({
   }
 
   const renderRow = (row: Row, label: string, scores: (number | null)[]) => {
-    const total = sum(scores);
-    const other = row === 'home' ? sum(game.awayScores) : sum(game.homeScores);
-    // 未入力（null）は空欄。0 は「終わった回で0点」なので 0 と表示する。
-    const cellText = (v: number | null): string => (v == null ? '' : String(v));
+    const done = doneOf(row);
+    const total = sum(scores, done);
+    const otherRow = row === 'home' ? 'away' : 'home';
+    const other = sum(
+      otherRow === 'home' ? game.homeScores : game.awayScores,
+      doneOf(otherRow),
+    );
     return (
       <tr key={row}>
         <th className="sticky left-0 z-10 max-w-[6.5rem] truncate bg-night px-3 py-2.5 text-left text-xs font-bold text-white/80">
@@ -61,6 +81,8 @@ export function Scoreboard({
         {INNINGS.map((i) => {
           const key = `${row}-${i}`;
           const val = scores[i];
+          // 「終わった回」までのみ数字を表示。それ以外は保存値が 0 でも空欄。
+          const text = i < done && val != null ? String(val) : i < done ? '0' : '';
           return (
             <td
               key={i}
@@ -86,7 +108,7 @@ export function Scoreboard({
                   onClick={() => startEdit(row, i, val)}
                   className="tnum h-11 w-11 text-lg font-bold tabular-nums text-amber-300 transition-colors hover:bg-white/10 active:bg-white/15"
                 >
-                  {cellText(val)}
+                  {text}
                 </button>
               )}
             </td>

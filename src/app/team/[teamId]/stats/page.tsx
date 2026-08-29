@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import type { AtBat, Player, StatLine } from '@/lib/types';
+import type { AtBat, HitZone, Player, StatLine } from '@/lib/types';
 import { useGames, usePlayers, listAtBats } from '@/lib/db';
 import { computeByPlayer, formatRate } from '@/lib/stats';
+import { zoneSide } from '@/lib/plate';
 import { Table, Th, Td } from '@/components/Table';
 import { Spinner } from '@/components/Spinner';
 import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
+import { SprayChart, SprayLegend, type SprayEntry } from '@/components/SprayChart';
 
 export default function StatsPage() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -65,6 +67,19 @@ export default function StatsPage() {
   );
   const totalByPlayer = useMemo(() => computeByPlayer(allAtBats), [allAtBats]);
 
+  // 打球方向：選手ごとの散布データ（方向が「不明」でないものだけ）
+  const sprayByPlayer = useMemo(() => {
+    const m = new Map<string, SprayEntry[]>();
+    for (const a of allAtBats) {
+      const z = a.detail?.zone;
+      if (!z || z === 'unknown') continue;
+      const list = m.get(a.playerId) ?? [];
+      list.push({ zone: z as HitZone, result: a.result });
+      m.set(a.playerId, list);
+    }
+    return m;
+  }, [allAtBats]);
+
   if (gamesLoading) return <Spinner />;
 
   return (
@@ -109,6 +124,50 @@ export default function StatsPage() {
             </div>
             <StatTable byPlayer={totalByPlayer} playerById={playerById} />
           </section>
+
+          {sprayByPlayer.size > 0 && (
+            <section className="flex flex-col gap-3">
+              <h2 className="eyebrow">打球方向</h2>
+              <SprayLegend />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[...sprayByPlayer.entries()]
+                  .sort((a, b) => b[1].length - a[1].length)
+                  .map(([pid, entries]) => {
+                    const name = playerById.get(pid)?.name ?? '(不明)';
+                    const l = entries.filter(
+                      (e) => zoneSide(e.zone) === 'left',
+                    ).length;
+                    const c = entries.filter(
+                      (e) => zoneSide(e.zone) === 'center',
+                    ).length;
+                    const r = entries.filter(
+                      (e) => zoneSide(e.zone) === 'right',
+                    ).length;
+                    return (
+                      <div
+                        key={pid}
+                        className="rounded-2xl border border-line bg-white p-3 shadow-card"
+                      >
+                        <div className="mb-1 flex items-baseline justify-between">
+                          <span className="text-sm font-bold text-ink">
+                            {name}
+                          </span>
+                          <span className="tnum text-xs text-ink-faint">
+                            {entries.length}打球
+                          </span>
+                        </div>
+                        <div className="mx-auto max-w-[260px]">
+                          <SprayChart entries={entries} />
+                        </div>
+                        <p className="tnum mt-1 text-center text-xs text-ink-muted">
+                          左 {l} ・ 中 {c} ・ 右 {r}
+                        </p>
+                      </div>
+                    );
+                  })}
+              </div>
+            </section>
+          )}
 
           <section className="flex flex-col gap-5">
             <h2 className="eyebrow">試合ごと</h2>
