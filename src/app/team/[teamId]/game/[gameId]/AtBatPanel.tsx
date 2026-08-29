@@ -30,6 +30,7 @@ import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { Spinner } from '@/components/Spinner';
 import { FanField } from '@/components/FanField';
+import { Scoreboard } from './Scoreboard';
 
 const GROUP_STYLE: Record<'hit' | 'out' | 'other', string> = {
   hit: 'bg-field text-white border-field-dark/30',
@@ -174,6 +175,18 @@ export function AtBatPanel({
     setSubSlot(null);
   }
 
+  // 相手の得点カウンター（awayScores を回ごとに増減）
+  const [oppInning, setOppInning] = useState<number | null>(null);
+  const oppTargetInning = oppInning ?? inning;
+  const oppRuns = game.awayScores[oppTargetInning - 1] ?? 0;
+  async function bumpOppRuns(delta: number) {
+    const next = [...game.awayScores];
+    const cur = next[oppTargetInning - 1] ?? 0;
+    const v = Math.max(0, Math.min(99, cur + delta));
+    next[oppTargetInning - 1] = v;
+    await updateGame(teamId, gameId, { awayScores: next });
+  }
+
   if (lineup.length === 0) {
     return (
       <div className="rounded-2xl border border-line bg-white p-8 text-center shadow-card">
@@ -191,11 +204,70 @@ export function AtBatPanel({
 
   const benchIds = new Set(lineup.map((s) => s.playerId));
   const bench = players.filter((p) => !p.archived && !benchIds.has(p.id));
-  const reversed = [...atbats].reverse();
-  const last = reversed[0];
+  const last = atbats.length ? atbats[atbats.length - 1] : undefined;
+  // 打席ログは回ごと（昇順）→ 回内は入力順。
+  const logRows = [...atbats].sort(
+    (a, b) => a.inning - b.inning || a.createdAt - b.createdAt,
+  );
 
   return (
     <div className="flex flex-col gap-4">
+      {/* スコアボード（最上部） */}
+      <Scoreboard teamId={teamId} gameId={gameId} game={game} />
+
+      {/* 相手の得点カウンター */}
+      <div className="flex items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 shadow-card">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-ink-muted">相手の得点</span>
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() =>
+                setOppInning(Math.max(1, oppTargetInning - 1))
+              }
+              disabled={oppTargetInning <= 1}
+              className="grid h-6 w-6 place-items-center rounded border border-line text-sm text-ink-muted disabled:opacity-30"
+              aria-label="対象の回を戻す"
+            >
+              −
+            </button>
+            <span className="tnum text-xs font-bold text-ink-faint">
+              {oppTargetInning}回
+            </span>
+            <button
+              type="button"
+              onClick={() => setOppInning(oppTargetInning + 1)}
+              className="grid h-6 w-6 place-items-center rounded border border-line text-sm text-ink-muted"
+              aria-label="対象の回を進める"
+            >
+              ＋
+            </button>
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => bumpOppRuns(-1)}
+            disabled={oppRuns <= 0}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-line text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+            aria-label="相手の得点を減らす"
+          >
+            −
+          </button>
+          <span className="tnum w-8 text-center text-2xl font-bold text-ink">
+            {oppRuns}
+          </span>
+          <button
+            type="button"
+            onClick={() => bumpOppRuns(1)}
+            className="grid h-11 w-14 place-items-center rounded-xl bg-clay text-2xl font-bold text-white shadow-sm active:scale-[0.97]"
+            aria-label="相手の得点を1点追加"
+          >
+            ＋
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-line bg-white shadow-card">
         {/* イニング（大きく表示）＋アウト */}
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -460,55 +532,61 @@ export function AtBatPanel({
         </h3>
         {loading ? (
           <Spinner />
-        ) : reversed.length === 0 ? (
+        ) : logRows.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-ink-faint">
             まだ記録がありません。
           </p>
         ) : (
           <ul className="divide-y divide-line">
-            {reversed.map((a) => {
+            {logRows.map((a, idx) => {
               const summary = describeDetail(a.result, a.detail);
+              const showInningHead =
+                idx === 0 || logRows[idx - 1].inning !== a.inning;
               return (
-                <li key={a.id} className="flex items-center gap-2.5 px-4 py-2.5">
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${CAT_DOT[RESULT_CAT[a.result]]}`}
-                    aria-hidden
-                  />
-                  <span className="tnum w-9 shrink-0 text-xs font-semibold text-ink-faint">
-                    {a.inning}回
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-ink">
-                    {nameOf(a.playerId)}
-                    {summary && (
-                      <span className="ml-1 text-xs text-ink-faint">
-                        {summary}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-sm font-bold text-ink">
-                    {AT_BAT_RESULT_LABELS[a.result]}
-                    {a.rbi > 0 && (
-                      <span className="ml-1 text-xs font-semibold text-clay-dark">
-                        {a.rbi}
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setEditing(a)}
-                      className="px-2 text-xs font-semibold text-field"
-                    >
-                      修正
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleting(a)}
-                      className="px-2 text-xs font-semibold text-ink-faint"
-                    >
-                      削除
-                    </button>
-                  </span>
+                <li key={a.id}>
+                  {showInningHead && (
+                    <p className="tnum bg-chalk px-4 py-1 text-[11px] font-bold text-ink-faint">
+                      {a.inning}回
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2.5 px-4 py-2.5">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${CAT_DOT[RESULT_CAT[a.result]]}`}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink">
+                      {nameOf(a.playerId)}
+                      {summary && (
+                        <span className="ml-1 text-xs text-ink-faint">
+                          {summary}
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-sm font-bold text-ink">
+                      {AT_BAT_RESULT_LABELS[a.result]}
+                      {a.rbi > 0 && (
+                        <span className="ml-1 text-xs font-semibold text-clay-dark">
+                          {a.rbi}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(a)}
+                        className="px-2 text-xs font-semibold text-field"
+                      >
+                        修正
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleting(a)}
+                        className="px-2 text-xs font-semibold text-ink-faint"
+                      >
+                        削除
+                      </button>
+                    </span>
+                  </div>
                 </li>
               );
             })}

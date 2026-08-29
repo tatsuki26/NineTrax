@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useGame, usePlayers, updateGame } from '@/lib/db';
@@ -9,15 +8,11 @@ import { Badge } from '@/components/Badge';
 import { Spinner } from '@/components/Spinner';
 import { EmptyState } from '@/components/EmptyState';
 import { AtBatPanel } from './AtBatPanel';
-import { Scoreboard } from './Scoreboard';
-
-type Tab = 'atbat' | 'score';
 
 export default function GamePage() {
   const { teamId, gameId } = useParams<{ teamId: string; gameId: string }>();
   const { game, loading } = useGame(teamId, gameId);
   const { players } = usePlayers(teamId, { includeArchived: true });
-  const [tab, setTab] = useState<Tab>('atbat');
 
   if (loading) return <Spinner label="試合を読み込み中…" />;
   if (!game) {
@@ -36,17 +31,15 @@ export default function GamePage() {
     );
   }
 
-  const sum = (arr: (number | null)[]) => arr.reduce<number>((s, v) => s + (v ?? 0), 0);
-  const home = sum(game.homeScores);
-  const away = sum(game.awayScores);
   const sideLabel =
     game.ourSide === 'first' ? '先攻' : game.ourSide === 'second' ? '後攻' : null;
+  const needsSide = game.ourSide == null && game.status === 'in_progress';
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* スコアヘッダー */}
-      <div className="panel-night rounded-2xl px-5 py-4 shadow-panel">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-4">
+      {/* 見出し */}
+      <div className="panel-night rounded-2xl px-5 py-3.5 shadow-panel">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-base font-bold text-white">
               vs {game.opponent || '未設定'}
@@ -73,14 +66,9 @@ export default function GamePage() {
             )}
           </div>
         </div>
-        <div className="mt-3 flex items-end gap-4">
-          <ScoreCol label="自チーム" value={home} lead={home > away} />
-          <span className="pb-1 text-lg font-bold text-white/30">-</span>
-          <ScoreCol label="相手" value={away} lead={away > home} />
-        </div>
       </div>
 
-      {game.ourSide == null && game.status === 'in_progress' ? (
+      {needsSide ? (
         <div className="rounded-2xl border border-line bg-white p-6 text-center shadow-card">
           <p className="text-sm font-bold text-ink">
             自チームは先攻ですか？後攻ですか？
@@ -105,47 +93,12 @@ export default function GamePage() {
           </div>
         </div>
       ) : (
-        <>
-      {/* スマホ: セグメントコントロールで切り替え */}
-      <div className="flex gap-1 rounded-xl border border-line bg-white p-1 lg:hidden">
-        {(
-          [
-            ['atbat', '打席入力'],
-            ['score', 'スコアボード'],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`h-10 flex-1 rounded-lg text-sm font-bold transition-colors ${
-              tab === key
-                ? 'bg-field text-white shadow-sm'
-                : 'text-ink-faint active:bg-chalk'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* スマホ: 選択中パネル / PC: 左右2カラム */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-6">
-        <div className={tab === 'atbat' ? '' : 'hidden lg:block'}>
-          <AtBatPanel
-            teamId={teamId}
-            gameId={gameId}
-            game={game}
-            players={players}
-          />
-        </div>
-        <div className={tab === 'score' ? '' : 'hidden lg:block'}>
-          <div className="lg:sticky lg:top-6">
-            <Scoreboard teamId={teamId} gameId={gameId} game={game} />
-          </div>
-        </div>
-      </div>
-        </>
+        <AtBatPanel
+          teamId={teamId}
+          gameId={gameId}
+          game={game}
+          players={players}
+        />
       )}
 
       <div className="flex items-center justify-between">
@@ -173,29 +126,6 @@ export default function GamePage() {
           </Button>
         )}
       </div>
-    </div>
-  );
-}
-
-function ScoreCol({
-  label,
-  value,
-  lead,
-}: {
-  label: string;
-  value: number;
-  lead: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-white/50">{label}</p>
-      <p
-        className={`tnum text-4xl font-bold leading-none ${
-          lead ? 'text-white' : 'text-white/60'
-        }`}
-      >
-        {value}
-      </p>
     </div>
   );
 }
