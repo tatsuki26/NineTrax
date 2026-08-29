@@ -179,13 +179,17 @@ export function AtBatPanel({
   // 相手の得点カウンター（awayScores を回ごとに増減）
   const [oppInning, setOppInning] = useState<number | null>(null);
   const oppTargetInning = oppInning ?? inning;
-  const oppRuns = game.awayScores[oppTargetInning - 1] ?? 0;
-  async function bumpOppRuns(delta: number) {
+  const oppRaw = game.awayScores[oppTargetInning - 1];
+  const oppRuns = oppRaw ?? 0;
+  const oppConfirmed = oppRaw != null;
+  async function setOppRuns(v: number) {
     const next = [...game.awayScores];
-    const cur = next[oppTargetInning - 1] ?? 0;
-    const v = Math.max(0, Math.min(99, cur + delta));
-    next[oppTargetInning - 1] = v;
+    next[oppTargetInning - 1] = Math.max(0, Math.min(99, v));
     await updateGame(teamId, gameId, { awayScores: next });
+  }
+  async function confirmOppInningAndNext() {
+    if (oppRaw == null) await setOppRuns(0); // 0点でも明示的に記録
+    setOppInning(oppTargetInning + 1);
   }
 
   if (lineup.length === 0) {
@@ -225,15 +229,13 @@ export function AtBatPanel({
       <Scoreboard teamId={teamId} gameId={gameId} game={game} />
 
       {/* 相手の得点カウンター */}
-      <div className="flex items-center justify-between rounded-2xl border border-line bg-white px-4 py-3 shadow-card">
-        <div className="flex items-center gap-2">
+      <div className="rounded-2xl border border-line bg-white px-4 py-3 shadow-card">
+        <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-bold text-ink-muted">相手の得点</span>
           <span className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() =>
-                setOppInning(Math.max(1, oppTargetInning - 1))
-              }
+              onClick={() => setOppInning(Math.max(1, oppTargetInning - 1))}
               disabled={oppTargetInning <= 1}
               className="grid h-6 w-6 place-items-center rounded border border-line text-sm text-ink-muted disabled:opacity-30"
               aria-label="対象の回を戻す"
@@ -242,6 +244,9 @@ export function AtBatPanel({
             </button>
             <span className="tnum text-xs font-bold text-ink-faint">
               {oppTargetInning}回
+              {oppConfirmed && (
+                <span className="ml-1 text-field">確定</span>
+              )}
             </span>
             <button
               type="button"
@@ -253,28 +258,39 @@ export function AtBatPanel({
             </button>
           </span>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center justify-center gap-4">
           <button
             type="button"
-            onClick={() => bumpOppRuns(-1)}
+            onClick={() => setOppRuns(oppRuns - 1)}
             disabled={oppRuns <= 0}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-line text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
+            className="grid h-11 w-11 place-items-center rounded-xl border border-line text-2xl text-ink-muted active:bg-chalk disabled:opacity-30"
             aria-label="相手の得点を減らす"
           >
             −
           </button>
-          <span className="tnum w-8 text-center text-2xl font-bold text-ink">
+          <span className="tnum w-10 text-center text-3xl font-bold text-ink">
             {oppRuns}
           </span>
           <button
             type="button"
-            onClick={() => bumpOppRuns(1)}
-            className="grid h-11 w-14 place-items-center rounded-xl bg-clay text-2xl font-bold text-white shadow-sm active:scale-[0.97]"
+            onClick={() => setOppRuns(oppRuns + 1)}
+            className="grid h-11 w-16 place-items-center rounded-xl bg-clay text-2xl font-bold text-white shadow-sm active:scale-[0.97]"
             aria-label="相手の得点を1点追加"
           >
             ＋
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={confirmOppInningAndNext}
+          className="mt-3 h-10 w-full rounded-xl border border-field bg-field-tint text-sm font-bold text-field-dark active:bg-field/10"
+        >
+          {oppRuns === 0
+            ? `この回は0点で確定して次へ`
+            : `この回を確定して次へ（${oppRuns}点）`}
+        </button>
       </div>
 
       <div className="rounded-2xl border border-line bg-white shadow-card">
