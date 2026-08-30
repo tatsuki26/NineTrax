@@ -92,11 +92,29 @@ export function AtBatPanel({
   const lineupIndex = (pid: string) =>
     lineup.findIndex((s) => s.playerId === pid);
 
-  // イニング：手動送りのみ。既定は直前の打席のイニング。
-  const lastInning = atbats.length ? atbats[atbats.length - 1].inning : 1;
-  const [inningOverride, setInningOverride] = useState<number | null>(null);
-  const inning = inningOverride ?? lastInning;
-  const outs = outsInInning(atbats, inning);
+  // 走塁アウト（盗塁死など、打席以外で記録されたランナーのアウト）を回ごとに数える。
+  const runnerOutsInInning = (inn: number) =>
+    game.steals.filter((s) => s.caught && s.inning === inn).length;
+  // その回のアウト合計 = 打席のアウト + 走塁アウト。
+  const totalOutsInInning = (inn: number) =>
+    outsInInning(atbats, inn) + runnerOutsInInning(inn);
+
+  // 現在のイニングを状態から導出する。3アウト（打席 + 盗塁死）になった回は飛ばす。
+  const maxRecordedInning = Math.max(
+    1,
+    atbats.reduce((m, a) => Math.max(m, a.inning), 1),
+    ...game.steals.map((s) => s.inning),
+  );
+  const derivedInning = (() => {
+    for (let i = 1; i <= maxRecordedInning; i++) {
+      if (totalOutsInInning(i) < 3) return i;
+    }
+    return maxRecordedInning + 1;
+  })();
+  // 手動で回を動かした場合のみ manualInning が入る。打席を記録すると自動に戻す。
+  const [manualInning, setManualInning] = useState<number | null>(null);
+  const inning = manualInning ?? derivedInning;
+  const outs = totalOutsInInning(inning);
 
   // --- 打順ロジック（唯一の真実）---------------------------------------
   // その試合の打席数を打順人数で割った余り＝いま打席に立つべき打順インデックス。
@@ -105,10 +123,11 @@ export function AtBatPanel({
   const currentOrder = currentIdx + 1;
   const autoBatterId: string | null = lineup[currentIdx]?.playerId ?? null;
 
-  // 自チームで3アウトが記録された最後の回（スコアボードの「終わった回」判定に使う）
+  // 自チームで3アウトになった最後の回（スコアボードの「終わった回」判定に使う）。
+  // 打席のアウトに加えて走塁アウト（盗塁死など）も数える。
   const ourInningsDone = (() => {
     let d = 0;
-    for (let i = 1; i <= 9; i++) if (outsInInning(atbats, i) >= 3) d = i;
+    for (let i = 1; i <= 9; i++) if (totalOutsInInning(i) >= 3) d = i;
     return d;
   })();
 
@@ -128,12 +147,14 @@ export function AtBatPanel({
   const [showBench, setShowBench] = useState(false);
   const [subSlot, setSubSlot] = useState<number | null>(null);
 
-  // 3アウトたまったら自動で次の回へ（自然な進行時のみ）。
+  // 3アウトになった回（打席 + 盗塁死）を「終わった回」として保存する。
+  // イニングの表示切替は derivedInning が自動でやるので、ここでは永続化のみ。
   useEffect(() => {
-    if (inningOverride == null && outs >= 3) {
-      setInningOverride(inning + 1);
+    if (ourInningsDone > game.homeInningsDone) {
+      void updateGame(teamId, gameId, { homeInningsDone: ourInningsDone });
     }
-  }, [inningOverride, outs, inning]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ourInningsDone, game.homeInningsDone, teamId, gameId]);
 
   const meta = choice ? choiceMeta(choice) : null;
   const needsDirection = meta?.needsDirection ?? false;
@@ -145,10 +166,12 @@ export function AtBatPanel({
     setRbi(c ? (choiceMeta(c).defaultRbi ?? 0) : 0);
   }
 
-  // 記録後：入力欄をクリアし、打者を「打順どおり自動」に戻す（＝次の打者へ進む）。
+  // 記録後：入力欄をクリアし、打者・イニングを「自動」に戻す
+  // （＝次の打者・3アウトなら次の回へ進む）。
   function resetInput() {
     setManualBatterId(null);
     setPickingBatter(false);
+    setManualInning(null);
     setChoice(null);
     setZone(null);
     setRbi(0);
@@ -181,12 +204,13 @@ export function AtBatPanel({
         rbi,
         detail,
       });
-      // 3アウト目なら即・次の回へ（スナップショット反映を待たない）
-      if (outs + outsFor({ result, detail }) >= 3) {
-        setInningOverride(inning + 1);
-        if (game.homeInningsDone < inning) {
-          await updateGame(teamId, gameId, { homeInningsDone: inning });
-        }
+      // 3アウト目なら「終わった回」を即保存（スナップショット反映を待たない）。
+      // イニングの表示は derivedInning が自動で次へ送る。
+      if (
+        outs + outsFor({ result, detail }) >= 3 &&
+        game.homeInningsDone < inning
+      ) {
+        await updateGame(teamId, gameId, { homeInningsDone: inning });
       }
       resetInput();
     } finally {
@@ -364,7 +388,7 @@ export function AtBatPanel({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setInningOverride(Math.max(1, inning - 1))}
+              onClick={() => setManualInning(Math.max(1, inning - 1))}
               disabled={inning <= 1}
               className="grid h-9 w-9 place-items-center rounded-lg border border-line text-xl text-ink-muted active:bg-chalk disabled:opacity-30"
               aria-label="前のイニング"
@@ -373,7 +397,7 @@ export function AtBatPanel({
             </button>
             <button
               type="button"
-              onClick={() => setInningOverride(inning + 1)}
+              onClick={() => setManualInning(inning + 1)}
               className="rounded-lg border border-line px-3 text-sm font-bold text-ink-muted active:bg-chalk"
               style={{ height: 36 }}
             >
