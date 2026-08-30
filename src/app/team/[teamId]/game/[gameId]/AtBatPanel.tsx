@@ -17,7 +17,15 @@ import {
   FIELD_POSITIONS,
   FIELD_POSITION_LABELS,
 } from '@/lib/types';
-import { useAtBats, addAtBat, updateAtBat, deleteAtBat, updateGame } from '@/lib/db';
+import {
+  useAtBats,
+  addAtBat,
+  updateAtBat,
+  deleteAtBat,
+  updateGame,
+  addSteal,
+  removeSteal,
+} from '@/lib/db';
 import {
   buildAtBat,
   choiceMeta,
@@ -90,10 +98,13 @@ export function AtBatPanel({
   const inning = inningOverride ?? lastInning;
   const outs = outsInInning(atbats, inning);
 
-  // 次の打者（打順の目安）。打席数 mod 打順人数。代打（ベンチ選手）の打席も
-  // カウントされるので、交代しても打順は正しく1つ進む。
-  const nextOrder =
-    lineup.length > 0 ? (atbats.length % lineup.length) + 1 : 0;
+  // --- 打順ロジック（唯一の真実）---------------------------------------
+  // その試合の打席数を打順人数で割った余り＝いま打席に立つべき打順インデックス。
+  // 代打・交代を挟んでも「打席が1つ増えれば打順は1つ進む」だけ。
+  const currentIdx = lineup.length > 0 ? atbats.length % lineup.length : 0;
+  const currentOrder = currentIdx + 1;
+  const autoBatterId: string | null = lineup[currentIdx]?.playerId ?? null;
+
   // 自チームで3アウトが記録された最後の回（スコアボードの「終わった回」判定に使う）
   const ourInningsDone = (() => {
     let d = 0;
@@ -102,7 +113,12 @@ export function AtBatPanel({
   })();
 
   // 統一入力の状態：選手 → 結果 → 方向 → 打点
-  const [playerId, setPlayerId] = useState<string | null>(null);
+  // manualBatterId: null = 打順どおり自動 / 文字列 = 手動指定（代打含む）
+  const [manualBatterId, setManualBatterId] = useState<string | null>(null);
+  const [pickingBatter, setPickingBatter] = useState(false);
+  const playerId: string | null = pickingBatter
+    ? null
+    : (manualBatterId ?? autoBatterId);
   const [choice, setChoice] = useState<ResultChoice | null>(null);
   const [zone, setZone] = useState<Direction | null>(null);
   const [rbi, setRbi] = useState(0);
@@ -129,11 +145,25 @@ export function AtBatPanel({
     setRbi(c ? (choiceMeta(c).defaultRbi ?? 0) : 0);
   }
 
+  // 記録後：入力欄をクリアし、打者を「打順どおり自動」に戻す（＝次の打者へ進む）。
   function resetInput() {
-    setPlayerId(null);
+    setManualBatterId(null);
+    setPickingBatter(false);
     setChoice(null);
     setZone(null);
     setRbi(0);
+  }
+
+  // 打者を選び直す（代打・打順修正）。
+  function changeBatter() {
+    setChoice(null);
+    setZone(null);
+    setPickingBatter(true);
+  }
+
+  function chooseBatter(id: string) {
+    setManualBatterId(id);
+    setPickingBatter(false);
   }
 
   async function record() {
@@ -142,10 +172,10 @@ export function AtBatPanel({
     try {
       const { result, detail } = buildAtBat(choice, zone);
       const idx = lineupIndex(playerId);
-      // スタメンは打順スロット、ベンチ（代打）は「次の打者」の枠として記録する。
+      // スタメンは打順スロット、ベンチ（代打）は現在の打順の枠として記録する。
       await addAtBat(teamId, gameId, {
         playerId,
-        order: idx >= 0 ? idx + 1 : nextOrder,
+        order: idx >= 0 ? idx + 1 : currentOrder,
         inning,
         result,
         rbi,
@@ -355,21 +385,32 @@ export function AtBatPanel({
         <div className="p-4">
           {!playerId ? (
             <>
-              {/* 1. 選手（打順・守備位置つき） */}
-              <p className="mb-2 text-xs font-bold text-ink-faint">
-                打席が終わった選手を選ぶ
-              </p>
+              {/* 打者を選び直す（代打・打順修正） */}
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-bold text-ink-faint">
+                  打者を選ぶ（打順は自動で進みます）
+                </p>
+                {!pickingBatter ? null : (
+                  <button
+                    type="button"
+                    onClick={() => setPickingBatter(false)}
+                    className="text-xs font-bold text-field"
+                  >
+                    打順に戻す
+                  </button>
+                )}
+              </div>
               <ul className="flex flex-col gap-1.5">
                 {lineup.map((slot, i) => {
                   const p = playerById.get(slot.playerId);
-                  const isNext = i + 1 === nextOrder;
+                  const isCurrent = i === currentIdx;
                   return (
                     <li key={`${i}-${slot.playerId}`} className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setPlayerId(slot.playerId)}
+                        onClick={() => chooseBatter(slot.playerId)}
                         className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left active:bg-chalk ${
-                          isNext
+                          isCurrent
                             ? 'border-field/50 bg-field-tint'
                             : 'border-line bg-white'
                         }`}
@@ -383,9 +424,9 @@ export function AtBatPanel({
                         <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink">
                           {p?.name ?? '(不明)'}
                         </span>
-                        {isNext && (
+                        {isCurrent && (
                           <span className="shrink-0 rounded-full bg-field px-1.5 py-0.5 text-[10px] font-bold text-white">
-                            次
+                            打席
                           </span>
                         )}
                       </button>
@@ -408,7 +449,7 @@ export function AtBatPanel({
                     onClick={() => setShowBench((v) => !v)}
                     className="text-xs font-bold text-field"
                   >
-                    {showBench ? '▲ ベンチを隠す' : '▼ ベンチの選手で入力'}
+                    {showBench ? '▲ ベンチを隠す' : '▼ ベンチの選手で入力（代打）'}
                   </button>
                   {showBench && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -416,7 +457,7 @@ export function AtBatPanel({
                         <button
                           key={p.id}
                           type="button"
-                          onClick={() => setPlayerId(p.id)}
+                          onClick={() => chooseBatter(p.id)}
                           className="rounded-full border border-line bg-white px-3 py-1.5 text-sm text-ink-muted active:bg-chalk"
                         >
                           {p.number != null && (
@@ -436,24 +477,28 @@ export function AtBatPanel({
             <>
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-ink">
-                  {lineupIndex(playerId) >= 0 && (
-                    <span className="tnum mr-1.5 text-field">
-                      {lineupIndex(playerId) + 1}番
-                    </span>
-                  )}
-                  {lineupIndex(playerId) >= 0 && (
-                    <span className="mr-1.5 text-xs text-ink-muted">
-                      {FIELD_POSITION_LABELS[lineup[lineupIndex(playerId)].position]}
+                  {lineupIndex(playerId) >= 0 ? (
+                    <>
+                      <span className="tnum mr-1.5 text-field">
+                        {lineupIndex(playerId) + 1}番
+                      </span>
+                      <span className="mr-1.5 text-xs text-ink-muted">
+                        {FIELD_POSITION_LABELS[lineup[lineupIndex(playerId)].position]}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="mr-1.5 rounded bg-clay/15 px-1.5 py-0.5 text-[10px] font-bold text-clay-dark">
+                      代打
                     </span>
                   )}
                   {nameOf(playerId)}
                 </span>
                 <button
                   type="button"
-                  onClick={resetInput}
+                  onClick={changeBatter}
                   className="text-xs font-bold text-ink-faint"
                 >
-                  選手を変更
+                  打者を変更
                 </button>
               </div>
 
@@ -559,6 +604,17 @@ export function AtBatPanel({
           )}
         </div>
       </div>
+
+      {/* 盗塁 */}
+      <StealBox
+        teamId={teamId}
+        gameId={gameId}
+        game={game}
+        players={players}
+        lineup={lineup}
+        inning={inning}
+        nameOf={nameOf}
+      />
 
       {/* 直前の記録 */}
       {last && (
@@ -730,6 +786,168 @@ export function AtBatPanel({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BASE_LABEL: Record<2 | 3 | 4, string> = { 2: '二盗', 3: '三盗', 4: '本盗' };
+
+function StealBox({
+  teamId,
+  gameId,
+  game,
+  players,
+  lineup,
+  inning,
+  nameOf,
+}: {
+  teamId: string;
+  gameId: string;
+  game: Game;
+  players: Player[];
+  lineup: Game['lineup'];
+  inning: number;
+  nameOf: (id: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [runnerId, setRunnerId] = useState('');
+  const [base, setBase] = useState<2 | 3 | 4>(2);
+  const [caught, setCaught] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const steals = game.steals;
+  const candidates = [
+    ...lineup.map((s) => s.playerId),
+    ...players
+      .filter(
+        (p) => !p.archived && !lineup.some((s) => s.playerId === p.id),
+      )
+      .map((p) => p.id),
+  ];
+
+  async function onRecord() {
+    if (!runnerId || busy) return;
+    setBusy(true);
+    try {
+      await addSteal(teamId, gameId, steals, {
+        playerId: runnerId,
+        inning,
+        base,
+        caught,
+      });
+      setRunnerId('');
+      setBase(2);
+      setCaught(false);
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-line bg-white shadow-card">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3"
+      >
+        <span className="text-sm font-bold text-ink-muted">
+          盗塁 <span className="text-ink-faint">{steals.length}</span>
+        </span>
+        <span className="text-xs font-bold text-field">
+          {open ? '閉じる' : '＋ 記録する'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-line p-4">
+          <div className="flex flex-col gap-2.5">
+            <select
+              value={runnerId}
+              onChange={(e) => setRunnerId(e.target.value)}
+              className="h-11 w-full rounded-xl border border-line bg-white px-3 text-base text-ink"
+            >
+              <option value="">走者を選ぶ</option>
+              {candidates.map((id) => (
+                <option key={id} value={id}>
+                  {nameOf(id)}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex gap-1.5">
+              {([2, 3, 4] as const).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setBase(b)}
+                  className={`h-10 flex-1 rounded-xl border text-sm font-bold ${
+                    base === b
+                      ? 'border-field bg-field text-white'
+                      : 'border-line text-ink-muted'
+                  }`}
+                >
+                  {BASE_LABEL[b]}
+                </button>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-2 text-sm font-bold text-ink-muted">
+              <input
+                type="checkbox"
+                checked={caught}
+                onChange={(e) => setCaught(e.target.checked)}
+                className="h-4 w-4 accent-stitch"
+              />
+              盗塁死（アウト）にする
+            </label>
+
+            <Button
+              fullWidth
+              disabled={!runnerId || busy}
+              onClick={onRecord}
+            >
+              {busy ? '記録中…' : `${inning}回に記録`}
+            </Button>
+          </div>
+
+          {steals.length > 0 && (
+            <ul className="mt-3 divide-y divide-line border-t border-line">
+              {[...steals]
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .map((s) => (
+                  <li
+                    key={s.createdAt}
+                    className="flex items-center gap-2 py-2 text-sm"
+                  >
+                    <span className="tnum shrink-0 text-xs font-semibold text-ink-faint">
+                      {s.inning}回
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-ink">
+                      {nameOf(s.playerId)}
+                    </span>
+                    <span
+                      className={`shrink-0 text-xs font-bold ${
+                        s.caught ? 'text-stitch-dark' : 'text-field'
+                      }`}
+                    >
+                      {s.caught ? '盗塁死' : BASE_LABEL[s.base]}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeSteal(teamId, gameId, game.steals, s.createdAt)
+                      }
+                      className="shrink-0 px-2 text-xs font-semibold text-ink-faint"
+                    >
+                      削除
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

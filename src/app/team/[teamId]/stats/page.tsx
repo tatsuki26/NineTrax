@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { AtBat, HitZone, Player, StatLine } from '@/lib/types';
 import { useGames, usePlayers, listAtBats } from '@/lib/db';
-import { computeByPlayer, formatRate } from '@/lib/stats';
+import {
+  computeByPlayer,
+  formatRate,
+  stealsByPlayer,
+  type StealLine,
+} from '@/lib/stats';
 import { zoneSide } from '@/lib/plate';
 import { Table, Th, Td } from '@/components/Table';
 import { Spinner } from '@/components/Spinner';
@@ -66,6 +71,10 @@ export default function StatsPage() {
     [atbatsByGame],
   );
   const totalByPlayer = useMemo(() => computeByPlayer(allAtBats), [allAtBats]);
+  const totalSteals = useMemo(
+    () => stealsByPlayer(seasonGames.flatMap((g) => g.steals)),
+    [seasonGames],
+  );
 
   // 打球方向：選手ごとの散布データ（方向が「不明」でないものだけ）
   const sprayByPlayer = useMemo(() => {
@@ -122,7 +131,11 @@ export default function StatsPage() {
                 {effectiveSeason}年 ・ {seasonGames.length}試合
               </span>
             </div>
-            <StatTable byPlayer={totalByPlayer} playerById={playerById} />
+            <StatTable
+              byPlayer={totalByPlayer}
+              playerById={playerById}
+              stealsMap={totalSteals}
+            />
           </section>
 
           {sprayByPlayer.size > 0 && (
@@ -182,6 +195,7 @@ export default function StatsPage() {
                   <StatTable
                     byPlayer={computeByPlayer(rows)}
                     playerById={playerById}
+                    stealsMap={stealsByPlayer(g.steals)}
                   />
                 </div>
               );
@@ -220,9 +234,11 @@ const COLUMNS: {
 function StatTable({
   byPlayer,
   playerById,
+  stealsMap,
 }: {
   byPlayer: Map<string, StatLine>;
   playerById: Map<string, Player>;
+  stealsMap?: Map<string, StealLine>;
 }) {
   const rows = Array.from(byPlayer.entries())
     .map(([playerId, line]) => ({
@@ -245,27 +261,39 @@ function StatTable({
           {COLUMNS.map((c) => (
             <Th key={c.key}>{c.label}</Th>
           ))}
+          {stealsMap && <Th>盗塁</Th>}
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.playerId}>
-            <Td>
-              {r.number != null && (
-                <span className="mr-1 text-ink-faint">#{r.number}</span>
-              )}
-              {r.name}
-            </Td>
-            {COLUMNS.map((c) => {
-              const v = r.line[c.key];
-              return (
-                <Td key={c.key} strong={c.strong}>
-                  {c.rate ? formatRate(v as number | null) : (v as number)}
+        {rows.map((r) => {
+          const st = stealsMap?.get(r.playerId);
+          return (
+            <tr key={r.playerId}>
+              <Td>
+                {r.number != null && (
+                  <span className="mr-1 text-ink-faint">#{r.number}</span>
+                )}
+                {r.name}
+              </Td>
+              {COLUMNS.map((c) => {
+                const v = r.line[c.key];
+                return (
+                  <Td key={c.key} strong={c.strong}>
+                    {c.rate ? formatRate(v as number | null) : (v as number)}
+                  </Td>
+                );
+              })}
+              {stealsMap && (
+                <Td>
+                  {st?.sb ?? 0}
+                  {st?.cs ? (
+                    <span className="text-ink-faint"> / {st.cs}</span>
+                  ) : null}
                 </Td>
-              );
-            })}
-          </tr>
-        ))}
+              )}
+            </tr>
+          );
+        })}
       </tbody>
     </Table>
   );

@@ -18,6 +18,7 @@ import type {
   GameInput,
   LineupSlot,
   OurSide,
+  Steal,
   Substitution,
 } from '@/lib/types';
 import { EMPTY_SCORES, FIELD_POSITIONS } from '@/lib/types';
@@ -75,6 +76,24 @@ function normalizeSubs(v: unknown): Substitution[] {
     .filter((s): s is Substitution => s !== null);
 }
 
+function normalizeSteals(v: unknown): Steal[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((s): Steal | null => {
+      const e = (s ?? {}) as Partial<Steal>;
+      if (typeof e.playerId !== 'string' || !e.playerId) return null;
+      const base = e.base === 2 || e.base === 3 || e.base === 4 ? e.base : 2;
+      return {
+        playerId: e.playerId,
+        inning: typeof e.inning === 'number' ? e.inning : 1,
+        base,
+        caught: e.caught === true,
+        createdAt: typeof e.createdAt === 'number' ? e.createdAt : Date.now(),
+      };
+    })
+    .filter((s): s is Steal => s !== null);
+}
+
 export function toGame(id: string, data: Record<string, unknown>): Game {
   const side = data.ourSide;
   return {
@@ -86,6 +105,7 @@ export function toGame(id: string, data: Record<string, unknown>): Game {
     lineup: normalizeLineup(data.lineup),
     ourSide: side === 'first' || side === 'second' ? (side as OurSide) : null,
     substitutions: normalizeSubs(data.substitutions),
+    steals: normalizeSteals(data.steals),
     homeScores: normalizeScores(data.homeScores),
     awayScores: normalizeScores(data.awayScores),
     homeInningsDone: clampDone(data.homeInningsDone),
@@ -130,6 +150,7 @@ export async function createGame(
     lineup: input.lineup,
     ourSide: null,
     substitutions: [],
+    steals: [],
     homeScores: [...EMPTY_SCORES],
     awayScores: [...EMPTY_SCORES],
     homeInningsDone: 0,
@@ -148,6 +169,29 @@ export async function updateGame(
   patch: Partial<Omit<Game, 'id' | 'createdAt'>>,
 ): Promise<void> {
   await updateDoc(gameDoc(teamId, gameId), patch);
+}
+
+// 盗塁を1件追加する（試合ドキュメントの steals 配列に追記）。
+export async function addSteal(
+  teamId: string,
+  gameId: string,
+  current: Steal[],
+  entry: { playerId: string; inning: number; base: 2 | 3 | 4; caught: boolean },
+): Promise<void> {
+  const steal: Steal = { ...entry, createdAt: Date.now() };
+  await updateDoc(gameDoc(teamId, gameId), { steals: [...current, steal] });
+}
+
+// 盗塁を1件削除する（createdAt で該当を除外）。
+export async function removeSteal(
+  teamId: string,
+  gameId: string,
+  current: Steal[],
+  createdAt: number,
+): Promise<void> {
+  await updateDoc(gameDoc(teamId, gameId), {
+    steals: current.filter((s) => s.createdAt !== createdAt),
+  });
 }
 
 // 試合削除。配下の atbats も一括削除する（仕様書 §11.3）。
