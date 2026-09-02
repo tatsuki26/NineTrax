@@ -125,6 +125,17 @@ export interface Substitution {
   createdAt: number;
 }
 
+/** 盗塁の記録（打席とは独立。試合ドキュメントに配列で保持） */
+export interface Steal {
+  playerId: string;
+  inning: number;
+  /** 何塁への盗塁か（2=二盗, 3=三盗, 4=本盗） */
+  base: 2 | 3 | 4;
+  /** true なら盗塁死（CS） */
+  caught: boolean;
+  createdAt: number;
+}
+
 /** 自チームが先攻(first)か後攻(second)か。 */
 export type OurSide = 'first' | 'second';
 
@@ -140,6 +151,8 @@ export interface Game {
   ourSide: OurSide | null;
   /** 選手交代の履歴 */
   substitutions: Substitution[];
+  /** 盗塁の記録 */
+  steals: Steal[];
   /** 各回の得点。長さ9。null = 未入力。 */
   homeScores: (number | null)[];
   awayScores: (number | null)[];

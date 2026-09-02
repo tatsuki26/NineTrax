@@ -8,7 +8,7 @@ import { onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { AtBat, Game, Player } from '@/lib/types';
 import { gameDoc, atbatsCol, playersCol, gamesCol } from './refs';
 import { toGame } from './games';
-import { toAtBat } from './atbats';
+import { toAtBat, sortAtBats } from './atbats';
 
 function toPlayer(id: string, data: Record<string, unknown>): Player {
   return {
@@ -47,9 +47,10 @@ export function useAtBats(
 
   useEffect(() => {
     setLoading(true);
-    const q = query(atbatsCol(teamId, gameId), orderBy('createdAt', 'asc'));
-    const unsub = onSnapshot(q, (snap) => {
-      setAtBats(snap.docs.map((d) => toAtBat(d.id, d.data())));
+    // orderBy を使わず全件購読し、クライアント側で `ts` 昇順に並べる
+    // （serverTimestamp の楽観的更新を即座に反映するため）。
+    const unsub = onSnapshot(atbatsCol(teamId, gameId), (snap) => {
+      setAtBats(sortAtBats(snap.docs.map((d) => toAtBat(d.id, d.data()))));
       setLoading(false);
     });
     return unsub;

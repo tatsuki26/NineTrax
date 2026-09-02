@@ -4,8 +4,6 @@ import {
   addDoc,
   deleteDoc,
   getDocs,
-  orderBy,
-  query,
   serverTimestamp,
   Timestamp,
   updateDoc,
@@ -16,7 +14,7 @@ import { atbatsCol, atbatDoc } from './refs';
 function toMillis(v: unknown): number {
   if (v instanceof Timestamp) return v.toMillis();
   if (typeof v === 'number') return v;
-  return Date.now();
+  return 0;
 }
 
 // Firestore は undefined を受け付けないため、書き込み前に再帰的に取り除く。
@@ -36,6 +34,10 @@ function pruneUndefined<T>(value: T): T {
 }
 
 export function toAtBat(id: string, data: Record<string, unknown>): AtBat {
+  // 並び替えキーはクライアント時刻 `ts` を優先する。
+  // serverTimestamp() は書き込み確定まで null で、orderBy('createdAt') では
+  // 楽観的更新が即反映されず「次打者が進まない」不具合の原因になる。
+  const ts = typeof data.ts === 'number' ? data.ts : toMillis(data.createdAt);
   const ab: AtBat = {
     id,
     playerId: (data.playerId as string) ?? '',
@@ -43,7 +45,7 @@ export function toAtBat(id: string, data: Record<string, unknown>): AtBat {
     inning: (data.inning as number) ?? 1,
     result: data.result as AtBat['result'],
     rbi: (data.rbi as number) ?? 0,
-    createdAt: toMillis(data.createdAt),
+    createdAt: ts,
   };
   if (data.detail && typeof data.detail === 'object') {
     ab.detail = data.detail as AtBatDetail;
@@ -51,15 +53,18 @@ export function toAtBat(id: string, data: Record<string, unknown>): AtBat {
   return ab;
 }
 
-// createdAt 昇順（入力順）。
+export function sortAtBats(rows: AtBat[]): AtBat[] {
+  return [...rows].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+// 入力順。orderBy は使わず全件取得してクライアント側で並び替える
+// （楽観的更新を即座に反映するため）。
 export async function listAtBats(
   teamId: string,
   gameId: string,
 ): Promise<AtBat[]> {
-  const snap = await getDocs(
-    query(atbatsCol(teamId, gameId), orderBy('createdAt', 'asc')),
-  );
-  return snap.docs.map((d) => toAtBat(d.id, d.data()));
+  const snap = await getDocs(atbatsCol(teamId, gameId));
+  return sortAtBats(snap.docs.map((d) => toAtBat(d.id, d.data())));
 }
 
 export async function addAtBat(
@@ -67,9 +72,10 @@ export async function addAtBat(
   gameId: string,
   input: AtBatInput,
 ): Promise<AtBat> {
-  const payload = pruneUndefined({ ...input, createdAt: serverTimestamp() });
+  const ts = Date.now();
+  const payload = pruneUndefined({ ...input, ts, createdAt: serverTimestamp() });
   const ref = await addDoc(atbatsCol(teamId, gameId), payload);
-  return toAtBat(ref.id, { ...payload, createdAt: Date.now() });
+  return toAtBat(ref.id, { ...payload, ts, createdAt: ts });
 }
 
 export async function updateAtBat(

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { Team } from '@/lib/types';
+import type { Game, Team } from '@/lib/types';
 import { useAdminAuth, signOutAdmin } from '@/lib/auth';
-import { createTeam } from '@/lib/db';
+import { createTeam, listGames, deleteGame } from '@/lib/db';
 import {
   listAllTeams,
   countAllGames,
@@ -37,6 +37,7 @@ export default function AdminDashboardPage() {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Team | null>(null);
+  const [gamesTeam, setGamesTeam] = useState<Team | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -211,6 +212,13 @@ export default function AdminDashboardPage() {
                   </p>
                 </div>
                 <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setGamesTeam(team)}
+                >
+                  試合を管理
+                </Button>
+                <Button
                   variant="danger"
                   size="sm"
                   onClick={() => setDeleteTarget(team)}
@@ -243,7 +251,140 @@ export default function AdminDashboardPage() {
           この操作は取り消せません。
         </p>
       </Modal>
+
+      {gamesTeam && (
+        <GamesManagerModal
+          team={gamesTeam}
+          onClose={() => setGamesTeam(null)}
+          onChanged={refresh}
+        />
+      )}
     </main>
+  );
+}
+
+function GamesManagerModal({
+  team,
+  onClose,
+  onChanged,
+}: {
+  team: Team;
+  onClose: () => void;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [games, setGames] = useState<Game[] | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      setGames(await listGames(team.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '試合の読み込みに失敗しました');
+      setGames([]);
+    }
+  }, [team.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function doDelete(gameId: string) {
+    setConfirmId(null);
+    setBusyId(gameId);
+    setError(null);
+    try {
+      await deleteGame(team.id, gameId);
+      setGames((prev) => (prev ? prev.filter((x) => x.id !== gameId) : prev));
+      await onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '試合の削除に失敗しました');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const total = (arr: (number | null)[]) =>
+    arr.reduce<number>((a, b) => a + (b ?? 0), 0);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`${team.name} の試合`}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          閉じる
+        </Button>
+      }
+    >
+      {error && (
+        <p className="mb-3 rounded-lg border border-stitch/20 bg-stitch/8 p-2.5 text-xs font-medium text-stitch-dark">
+          {error}
+        </p>
+      )}
+
+      {games === null ? (
+        <Spinner label="試合を読み込み中…" />
+      ) : games.length === 0 ? (
+        <p className="py-6 text-center text-sm text-ink-faint">
+          試合がありません。
+        </p>
+      ) : (
+        <ul className="max-h-[50vh] divide-y divide-line overflow-y-auto">
+          {games.map((g) => (
+            <li key={g.id} className="py-2.5">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">
+                    vs {g.opponent || '未設定'}
+                  </p>
+                  <p className="tnum mt-0.5 text-xs text-ink-faint">
+                    {g.date} ・ {total(g.homeScores)}–{total(g.awayScores)} ・{' '}
+                    {g.status === 'finished' ? '終了' : '進行中'}
+                  </p>
+                </div>
+                {confirmId !== g.id && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={busyId === g.id}
+                    onClick={() => setConfirmId(g.id)}
+                  >
+                    {busyId === g.id ? '削除中…' : '削除'}
+                  </Button>
+                )}
+              </div>
+              {confirmId === g.id && (
+                <div className="mt-2 rounded-xl border border-stitch/25 bg-stitch/5 p-3">
+                  <p className="text-xs text-ink-muted">
+                    打席記録・盗塁記録も含めて削除します。取り消せません。
+                  </p>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setConfirmId(null)}
+                    >
+                      キャンセル
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => doDelete(g.id)}
+                    >
+                      削除する
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }
 

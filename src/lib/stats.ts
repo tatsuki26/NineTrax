@@ -11,7 +11,7 @@
 //   OPS       = OBP + SLG                                 ( OBP か SLG が null なら null )
 //   打点  RBI = rbi の合計
 
-import type { AtBat, StatLine } from './types';
+import type { AtBat, Steal, StatLine } from './types';
 
 function emptyStatLine(): StatLine {
   return {
@@ -107,6 +107,23 @@ export function computeByPlayer(atbats: AtBat[]): Map<string, StatLine> {
     result.set(playerId, computeStatLine(list));
   }
   return result;
+}
+
+export interface StealLine {
+  sb: number; // 盗塁成功
+  cs: number; // 盗塁死
+}
+
+// 盗塁の集計。playerId -> {sb, cs}。
+export function stealsByPlayer(steals: Steal[]): Map<string, StealLine> {
+  const m = new Map<string, StealLine>();
+  for (const s of steals) {
+    const cur = m.get(s.playerId) ?? { sb: 0, cs: 0 };
+    if (s.caught) cur.cs += 1;
+    else cur.sb += 1;
+    m.set(s.playerId, cur);
+  }
+  return m;
 }
 
 // 表示用フォーマット。null は "-"、それ以外は先頭0を省いた小数3桁（例: .333, 1.000）。
